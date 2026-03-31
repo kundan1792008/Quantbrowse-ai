@@ -1,0 +1,25 @@
+{
+  "appId": "ai.quantbrowse.app",
+  "appName": "Quantbrowse-ai",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 0
+    }
+  },
+  "android": {
+    "buildOptions": {
+      "keystorePath": null,
+      "keystorePassword": null,
+      "keystoreAlias": null,
+      "keystoreAliasPassword": null,
+      "releaseType": "APK"
+    }
+  },
+  "ios": {
+    "scheme": "Quantbrowse-ai"
+  }
+}

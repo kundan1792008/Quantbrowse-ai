@@ -1,0 +1,38 @@
+[package]
+name = "quantbrowse-ai"
+version = "0.1.0"
+description = "Quantbrowse-ai — The Master Super-App Shell"
+authors = ["Quantbrowse Contributors"]
+license = "MIT"
+repository = "https://github.com/kundan1792008/Quantbrowse-ai"
+default-run = "quantbrowse-ai"
+edition = "2021"
+rust-version = "1.77.2"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary on Windows for the
+# DLL to be loadable by the Tauri host binary.
+name = "quantbrowse_ai_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "quantbrowse-ai"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.dev]
+incremental = true
+
+[profile.release]
+panic = "abort"
+codegen-units = 1

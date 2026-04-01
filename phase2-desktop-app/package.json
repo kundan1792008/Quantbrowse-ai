@@ -1,0 +1,18 @@
+{
+  "name": "quantbrowse-desktop",
+  "version": "1.0.0",
+  "description": "The AI Command Center - Autonomous Sandbox",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "author": "QuantBrowse Team",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "playwright": "^1.42.1"
+  },
+  "devDependencies": {
+    "electron": "^29.1.5"
+  }
+}

@@ -34,7 +34,7 @@ class QuantmailBiometricService extends EventEmitter {
 
         // Generate a shared secret for this session
         this._sharedSecret = crypto.randomBytes(64).toString('hex');
-        this._verified = true;
+        this._verified = false;
 
         this._log(onLog, '[Quantmail] Biometric Identity Service started.');
         this._log(onLog, '[Quantmail] Liveness validation interval: 15 s');

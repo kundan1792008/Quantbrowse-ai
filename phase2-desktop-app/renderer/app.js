@@ -7,10 +7,21 @@ const identityModal = document.getElementById('identityModal');
 const identityFailReason = document.getElementById('identityFailReason');
 const reverifyBtn = document.getElementById('reverifyBtn');
 
+function escapeHtml(str) {
+  var d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
 function appendMessage(role, text) {
   const el = document.createElement('div');
   el.className = `message ${role}`;
-  el.innerHTML = text.replace(/\n/g, '<br>');
+  // Agent messages intentionally contain HTML markup; everything else is escaped.
+  if (role === 'agent') {
+    el.innerHTML = text.replace(/\n/g, '<br>');
+  } else {
+    el.innerHTML = escapeHtml(text).replace(/\n/g, '<br>');
+  }
   chat.appendChild(el);
   chat.scrollTop = chat.scrollHeight;
   return el; // Return so we can update it if needed

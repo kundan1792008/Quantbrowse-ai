@@ -16,6 +16,21 @@
     .status { font-size: 12px; color: #3fb950; display: flex; align-items: center; gap: 5px; }
     .status-dot { width: 8px; height: 8px; background-color: #3fb950; border-radius: 50%; box-shadow: 0 0 8px #3fb950; }
     
+    /* Tab status bar */
+    .tab-bar {
+      display: flex; gap: 6px; padding: 8px 20px; border-bottom: 1px solid #30363d;
+      background-color: #161b22; font-size: 12px;
+    }
+    .tab-indicator {
+      padding: 4px 12px; border-radius: 4px; font-weight: 600;
+      background-color: #238636; color: #fff;
+      transition: background-color 0.3s;
+    }
+    .tab-indicator.isolated {
+      background-color: #f85149; animation: pulse-tab 1s infinite alternate;
+    }
+    @keyframes pulse-tab { from { opacity: 0.7; } to { opacity: 1; } }
+
     .chat-container {
       flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 15px;
     }
@@ -43,12 +58,38 @@
     
     .thinking { color: #f2cc60; display: inline-block; animation: pulse 1s infinite alternate; }
     @keyframes pulse { from { opacity: 0.5; } to { opacity: 1; } }
+
+    /* ---- Identity re-verification modal ---- */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; z-index: 1000;
+      background: rgba(0,0,0,0.85); align-items: center; justify-content: center;
+    }
+    .modal-overlay.visible { display: flex; }
+    .modal {
+      background: #161b22; border: 2px solid #f85149; border-radius: 12px;
+      padding: 32px 28px; max-width: 420px; width: 90%; text-align: center;
+      box-shadow: 0 0 40px rgba(248,81,73,0.35);
+    }
+    .modal h2 { margin: 0 0 12px; color: #f85149; font-size: 20px; }
+    .modal p  { margin: 0 0 8px; color: #c9d1d9; font-size: 14px; line-height: 1.5; }
+    .modal .reason { font-family: monospace; font-size: 12px; color: #f2cc60; margin-bottom: 20px; }
+    .modal button {
+      background-color: #58a6ff; padding: 12px 32px; font-size: 14px; border-radius: 6px;
+    }
+    .modal button:hover { background-color: #79c0ff; }
   </style>
 </head>
 <body>
   <div class="header">
     <h1>QuantBrowse AIO Sandbox</h1>
     <div class="status"><div class="status-dot"></div> Agent Idle</div>
+  </div>
+
+  <!-- Tab status bar -->
+  <div class="tab-bar" id="tabBar">
+    <div class="tab-indicator" id="tab-quantchat">Quantchat</div>
+    <div class="tab-indicator" id="tab-quantchill">Quantchill</div>
+    <div class="tab-indicator" id="tab-quanttube">Quanttube</div>
   </div>
   
   <div class="chat-container" id="chat">
@@ -61,6 +102,17 @@
   <div class="input-area">
     <input type="text" id="userInput" placeholder="e.g., 'Go to Wikipedia and save the summary of Quantum Computing to a file'">
     <button id="sendBtn">Execute</button>
+  </div>
+
+  <!-- Forced identity re-verification modal -->
+  <div class="modal-overlay" id="identityModal">
+    <div class="modal">
+      <h2>⚠️ Identity Verification Failed</h2>
+      <p>The cryptographic TLS handshake with <strong>Quantmail Biometric</strong> could not be validated.</p>
+      <p>All active tabs have been <strong>isolated</strong> and network logic is <strong>paused</strong>.</p>
+      <p class="reason" id="identityFailReason"></p>
+      <button id="reverifyBtn">Re-Verify Identity</button>
+    </div>
   </div>
 
   <script src="app.js"></script>

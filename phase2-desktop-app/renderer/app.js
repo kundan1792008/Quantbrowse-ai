@@ -7,21 +7,39 @@ const statusDot = document.querySelector('.status-dot');
 function appendMessage(role, text) {
   const el = document.createElement('div');
   el.className = `message ${role}`;
-  el.innerHTML = text.replace(/\n/g, '<br>');
+  el.textContent = text;
+  el.style.whiteSpace = 'pre-wrap';
   chat.appendChild(el);
   chat.scrollTop = chat.scrollHeight;
   return el; // Return so we can update it if needed
 }
 
+function createStatusDot(backgroundColor) {
+  const dot = document.createElement('div');
+  dot.className = 'status-dot';
+  dot.style.backgroundColor = backgroundColor;
+  dot.style.boxShadow = `0 0 8px ${backgroundColor}`;
+  return dot;
+}
+
 function setAgentStatus(status, isThinking = false) {
+    statusText.replaceChildren();
+
     if (isThinking) {
-        statusText.innerHTML = `<div class="status-dot" style="background-color: #f2cc60; box-shadow: 0 0 8px #f2cc60;"></div> <span class="thinking">${status}</span>`;
+        statusText.appendChild(createStatusDot('#f2cc60'));
+        const thinking = document.createElement('span');
+        thinking.className = 'thinking';
+        thinking.textContent = status;
+        statusText.appendChild(thinking);
     } else if (status === 'Idle') {
-        statusText.innerHTML = `<div class="status-dot" style="background-color: #3fb950; box-shadow: 0 0 8px #3fb950;"></div> Agent Idle`;
+        statusText.appendChild(createStatusDot('#3fb950'));
+        statusText.append(' Agent Idle');
     } else if (status.includes('Error')) {
-        statusText.innerHTML = `<div class="status-dot" style="background-color: #f85149; box-shadow: 0 0 8px #f85149;"></div> ${status}`;
+        statusText.appendChild(createStatusDot('#f85149'));
+        statusText.append(` ${status}`);
     } else {
-         statusText.innerHTML = `<div class="status-dot" style="background-color: #1f6feb; box-shadow: 0 0 8px #1f6feb;"></div> ${status}`;
+        statusText.appendChild(createStatusDot('#1f6feb'));
+        statusText.append(` ${status}`);
     }
 }
 

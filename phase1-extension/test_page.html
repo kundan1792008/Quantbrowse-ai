@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuantBrowse AI Testing Ground</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0d1117; color: #c9d1d9; padding: 40px; display: flex; justify-content: center;}
+        .container { background: #161b22; padding: 30px; border-radius: 10px; border: 1px solid #30363d; width: 400px; box-shadow: 0px 10px 30px rgba(0,0,0,0.5); }
+        h2 { color: #58a6ff; margin-top: 0; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: 600; font-size: 14px; color: #8b949e; }
+        input { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #30363d; background: #0d1117; color: white; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background: #238636; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button:hover { background: #2ea043; }
+        .footer-links { margin-top: 20px; text-align: center; }
+        .footer-links a { color: #58a6ff; text-decoration: none; font-size: 14px; margin: 0 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Target Website Simulator</h2>
+        <p style="font-size: 14px; color: #8b949e; margin-bottom: 25px;">Use the QuantBrowse extension to interact with this form via voice/text intent.</p>
+        
+        <div class="form-group">
+            <label>Username or Email</label>
+            <input type="text" id="username" placeholder="Enter username">
+        </div>
+        
+        <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="password" placeholder="Enter password">
+        </div>
+        
+        <button id="login-btn" onclick="alert('Login Clicked by Agent!')">Secure Login</button>
+        
+        <div class="footer-links">
+            <a href="#" onclick="alert('Navigating to Forgot Password')">Forgot Password?</a>
+            <a href="#" onclick="alert('Creating account')">Sign up</a>
+        </div>
+    </div>
+</body>
+</html>

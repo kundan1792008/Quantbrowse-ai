@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 const SYSTEM_PROMPT = `You are Quantbrowse AI, a smart browsing assistant integrated into a Chrome extension. You are given a user command and the extracted text content of the active webpage. Your job is to analyze the page content and provide a concise, accurate, and actionable response based on the user's request.
 
 Guidelines:
@@ -14,6 +10,16 @@ Guidelines:
 - If the page content is insufficient to fulfill the request, say so clearly and suggest what the user can do.
 - Never fabricate information that is not present in the provided page content.
 - Format your response using plain text or simple markdown (bold, bullets) for readability inside the extension popup.`;
+
+function getOpenAIClient() {
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
+
+  if (!apiKey) {
+    return null;
+  }
+
+  return new OpenAI({ apiKey });
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -41,7 +47,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Truncate domContent to avoid exceeding token limits (gpt-4o-mini context window)
+    const openai = getOpenAIClient();
+
+    if (!openai) {
+      return NextResponse.json(
+        {
+          error:
+            "OPENAI_API_KEY is not configured on the server. Please set it before using the AI endpoint.",
+        },
+        { status: 500 }
+      );
+    }
+
     const truncatedDom = domContent.slice(0, 12000);
 
     const completion = await openai.chat.completions.create({
@@ -65,10 +82,7 @@ export async function POST(req: NextRequest) {
   } catch (error: unknown) {
     console.error("[/api/browse] Error:", error);
 
-    if (
-      error instanceof OpenAI.APIError &&
-      error.status === 401
-    ) {
+    if (error instanceof OpenAI.APIError && error.status === 401) {
       return NextResponse.json(
         { error: "Invalid OpenAI API key. Please check your configuration." },
         { status: 500 }

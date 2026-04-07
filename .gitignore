@@ -14,6 +14,12 @@ out/
 .env.test.local
 .env.production.local
 
+# Desktop app build output
+/dist
+
+# OS files
+.DS_Store
+
 # Vercel
 .vercel
 

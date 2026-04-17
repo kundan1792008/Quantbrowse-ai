@@ -10,14 +10,17 @@
   },
   "dependencies": {
     "next": "15.2.9",
+    "openai": "^4.47.1",
     "react": "^19",
-    "react-dom": "^19",
-    "openai": "^4.47.1"
+    "react-dom": "^19"
   },
   "devDependencies": {
+    "@types/chrome": "^0.1.40",
     "@types/node": "^20",
-    "@types/react": "^19",
+    "@types/react": "^19.2.14",
     "@types/react-dom": "^19",
+    "eslint": "9.39.4",
+    "eslint-config-next": "16.2.4",
     "typescript": "^5"
   }
 }

@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Quantbrowse AI",
   "version": "2.0.0",
-  "description": "AI-powered browsing assistant with ambient intelligence: usage dashboard, smart tab grouping, daily digest, AI bookmarks, productivity score, and ecosystem redirect.",
+  "description": "AI OS Shell with ambient intelligence: usage dashboard, smart tab grouping, daily digest, AI bookmarks, productivity score, ecosystem redirect, Shadow DOM injection, and swarm coordination.",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
@@ -20,7 +20,8 @@
     {
       "matches": ["<all_urls>"],
       "js": ["content.js"],
-      "run_at": "document_idle"
+      "run_at": "document_idle",
+      "all_frames": false
     },
     {
       "matches": [
@@ -50,7 +51,9 @@
     "alarms",
     "tabGroups",
     "history",
-    "windows"
+    "windows",
+    "webNavigation",
+    "declarativeNetRequest"
   ],
   "host_permissions": [
     "<all_urls>"
@@ -63,5 +66,14 @@
   ],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"
+  },
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "csp_bypass_ruleset",
+        "enabled": false,
+        "path": "rules/csp_bypass.json"
+      }
+    ]
   }
 }

@@ -24,11 +24,21 @@
       "all_frames": false
     }
   ],
+  "commands": {
+    "quick_switch": {
+      "suggested_key": {
+        "default": "Ctrl+Space",
+        "mac": "Command+Shift+Space"
+      },
+      "description": "Open Tab Quick-Switch"
+    }
+  },
   "permissions": [
     "activeTab",
     "scripting",
     "storage",
     "tabs",
+    "tabGroups",
     "webNavigation",
     "declarativeNetRequest"
   ],

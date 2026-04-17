@@ -35,7 +35,8 @@ digestBtn.addEventListener("click", () => chrome.runtime.sendMessage({ type: "TR
 surpriseBtn.addEventListener("click", () => chrome.runtime.sendMessage({ type: "SURPRISE_BOOKMARK" }));
 
 refreshDashboard();
-setInterval(refreshDashboard, 60000);
+const refreshInterval = setInterval(refreshDashboard, 60000);
+window.addEventListener("unload", () => clearInterval(refreshInterval));
 
 function setLoading(loading) {
   runBtn.disabled = loading;
@@ -140,7 +141,17 @@ function formatDuration(ms) {
 function sendToActiveTab(message) {
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     const tab = tabs?.[0];
-    if (!tab?.id) return;
-    chrome.tabs.sendMessage(tab.id, message);
+    if (!tab?.id) {
+      showResult("⚠ No active tab available for this action.", true);
+      return;
+    }
+    chrome.tabs.sendMessage(tab.id, message, () => {
+      if (chrome.runtime.lastError) {
+        showResult(
+          `⚠ Unable to reach the page: ${chrome.runtime.lastError.message}`,
+          true
+        );
+      }
+    });
   });
 }

@@ -23,6 +23,7 @@
   const DASHBOARD_REFRESH_MS = 60000;
   const DASHBOARD_ID = "quantbrowse-ambient-dashboard";
   const NUDGE_ID = "quantbrowse-ambient-nudge";
+  const NUDGE_NO_AUTO_REDIRECT = 0;
 
   const DASHBOARD_CSS = `
     :host { all: initial; }
@@ -320,15 +321,15 @@
 
   function setupShortcuts() {
     window.addEventListener("keydown", (event) => {
-      if ((event.altKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "q") {
+      if (event.altKey && event.shiftKey && event.key.toLowerCase() === "q") {
         event.preventDefault();
         toggleDashboard();
       }
-      if ((event.altKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "g") {
+      if (event.altKey && event.shiftKey && event.key.toLowerCase() === "g") {
         event.preventDefault();
         chrome.runtime.sendMessage({ type: "TRIGGER_GROUP_TABS" });
       }
-      if ((event.altKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "d") {
+      if (event.altKey && event.shiftKey && event.key.toLowerCase() === "d") {
         event.preventDefault();
         chrome.runtime.sendMessage({ type: "TRIGGER_DIGEST" });
       }
@@ -677,7 +678,7 @@
     const meta = document.createElement("div");
     meta.className = "qa-nudge-meta";
     const countdown = document.createElement("span");
-    countdown.textContent = nudge.autoRedirectSeconds
+    countdown.textContent = nudge.autoRedirectSeconds !== NUDGE_NO_AUTO_REDIRECT
       ? `Auto-redirect in ${nudge.autoRedirectSeconds}s`
       : "Manual redirect";
 
@@ -701,7 +702,7 @@
     document.documentElement.appendChild(STATE.nudgeHost);
 
     recordNudge("shown", nudge.domain);
-    if (nudge.autoRedirectSeconds > 0) {
+    if (nudge.autoRedirectSeconds > NUDGE_NO_AUTO_REDIRECT) {
       let remaining = nudge.autoRedirectSeconds;
       STATE.nudgeCountdownTimer = setInterval(() => {
         remaining -= 1;

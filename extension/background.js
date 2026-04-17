@@ -8,7 +8,7 @@
 const DEFAULT_API_BASE_URL = "http://localhost:3000";
 const STORAGE_VERSION = 1;
 const NOTIFICATION_ICON =
-  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4//8/AwAI/AL+XqblAAAAAElFTkSuQmCC";
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAZUlEQVR42u3QQREAAAQAMF3d6S8BOZw9VmCR1fNZCBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAfctS5+Shk5p5qQAAAAASUVORK5CYII=";
 
 const STORAGE_KEYS = {
   usage: "ambientUsage",
@@ -600,9 +600,6 @@ async function bootstrap(reason) {
     await refreshActiveTab();
     await updateBadge();
     state.initialized = true;
-    if (reason === "install" && state.settings.dashboardAutoOpenOnInstall) {
-      await openDashboardForActiveTab();
-    }
   })();
   return readyPromise;
 }
@@ -628,6 +625,9 @@ async function handleInstall(details) {
       [STORAGE_KEYS.nudges]: state.nudges,
       [STORAGE_KEYS.rewards]: state.rewards,
     });
+    if (state.settings.dashboardAutoOpenOnInstall) {
+      await openDashboardForActiveTab();
+    }
   }
 }
 
@@ -1202,7 +1202,9 @@ function computeFocusStreak(sessions) {
 }
 
 async function scheduleSave() {
-  if (state.pendingSave) return;
+  if (state.pendingSave) {
+    clearTimeout(state.pendingSave);
+  }
   state.pendingSave = setTimeout(async () => {
     state.pendingSave = null;
     await storageSet({ [STORAGE_KEYS.usage]: state.usage });

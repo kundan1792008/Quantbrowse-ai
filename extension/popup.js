@@ -289,7 +289,6 @@ function renderCollectionsPanel() {
         id="col-search"
         type="text"
         placeholder="🔍 Search saves…"
-        value="${collectionsSearch}"
         style="
           flex:1;background:#1a1a24;border:1px solid #2a2a3c;
           border-radius:8px;color:#e8e8f0;font-size:11px;
@@ -318,8 +317,10 @@ function renderCollectionsPanel() {
     </div>
   `;
 
+  // Set value via DOM property (not innerHTML) to prevent XSS
   const searchInput = document.getElementById("col-search");
   if (searchInput) {
+    searchInput.value = collectionsSearch;
     searchInput.addEventListener("input", (e) => {
       collectionsSearch = e.target.value;
       renderCollectionsList();
@@ -373,19 +374,28 @@ function renderCollectionsList() {
     });
   }
 
+  // Clear existing content
+  listEl.textContent = "";
+
   if (items.length === 0) {
-    listEl.innerHTML = `
-      <div style="color:#5a5a7a;font-size:12px;padding:24px;text-align:center">
-        ${collectionsSearch ? "No results" : "Nothing saved yet"}<br>
-        <span style="font-size:10px">
-          Press <kbd style="background:#1a1a24;border:1px solid #2a2a3c;border-radius:3px;padding:1px 4px">Alt+S</kbd> to save the current page
-        </span>
-      </div>
-    `;
+    const emptyEl = document.createElement("div");
+    emptyEl.style.cssText = "color:#5a5a7a;font-size:12px;padding:24px;text-align:center";
+    const msgSpan = document.createElement("span");
+    msgSpan.textContent = collectionsSearch ? "No results" : "Nothing saved yet";
+    const hint = document.createElement("div");
+    hint.style.fontSize = "11px";
+    hint.style.marginTop = "6px";
+    hint.style.color = "#4a4a6a";
+    hint.textContent = "Press Alt+S to save the current page";
+    emptyEl.appendChild(msgSpan);
+    emptyEl.appendChild(hint);
+    listEl.appendChild(emptyEl);
     return;
   }
 
-  const statusColors = { queued: "#f59e0b", saving: "#6366f1", saved: "#10b981", failed: "#ef4444" };
+  const statusColors = {
+    queued: "#f59e0b", saving: "#6366f1", saved: "#10b981", failed: "#ef4444",
+  };
   const appIcons = {
     quantsink: "📡", quanttube: "▶️", quantedits: "🎨",
     quantbrowse: "🌐", quantdocs: "📄", quantcode: "💻",
@@ -404,7 +414,10 @@ function renderCollectionsList() {
     return new Date(ts).toLocaleDateString();
   }
 
-  listEl.innerHTML = items.slice(0, 50).map((item) => {
+  // Build item cards using DOM API to avoid XSS from user-controlled data
+  const fragment = document.createDocumentFragment();
+
+  items.slice(0, 50).forEach((item) => {
     const title = (item.tags?.title || item.url || "").slice(0, 60);
     const summary = (item.tags?.summary || "").slice(0, 80);
     const tags = (item.tags?.tags || []).slice(0, 3);
@@ -412,66 +425,95 @@ function renderCollectionsList() {
     const status = item.status || "queued";
     const statusColor = statusColors[status] || "#6b7280";
 
-    return `
-      <div style="
-        background:#13131a;border:1px solid #1e1e2e;
-        border-radius:8px;cursor:pointer;margin-bottom:6px;
-        padding:9px 10px;transition:border-color 0.15s;
-      "
-        data-id="${item.id}"
-        data-url="${escapeAttr(item.url)}"
-        onmouseenter="this.style.borderColor='#2a2a3c'"
-        onmouseleave="this.style.borderColor='#1e1e2e'"
-      >
-        <div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:4px">
-          <img
-            src="${escapeAttr(item.clip?.faviconUrl || '')}"
-            width="12" height="12"
-            style="border-radius:2px;flex-shrink:0;margin-top:2px"
-            onerror="this.style.display='none'"
-          />
-          <span style="
-            color:#e8e8f0;font-size:11px;font-weight:600;
-            flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-          " title="${escapeAttr(title)}">${title || item.url}</span>
-          <span style="
-            background:${statusColor}22;border:1px solid ${statusColor}44;
-            border-radius:8px;color:${statusColor};font-size:9px;
-            padding:2px 5px;flex-shrink:0;text-transform:uppercase;
-          ">${status}</span>
-        </div>
-        ${summary ? `<p style="color:#7a7a9a;font-size:10px;line-height:1.4;margin-bottom:4px">${summary}…</p>` : ""}
-        <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
-          ${tags.map((t) => `
-            <span style="
-              background:#1a1a24;border:1px solid #2a2a3c;border-radius:10px;
-              color:#7a7a9a;font-size:9px;padding:2px 6px;
-            ">${t}</span>
-          `).join("")}
-          <div style="flex:1"></div>
-          <span style="color:#4a4a6a;font-size:9px">${appIcons[app] || "🌐"} ${app}</span>
-          <span style="color:#3a3a5a;font-size:9px">·</span>
-          <span style="color:#4a4a6a;font-size:9px">${formatDate(item.savedAt)}</span>
-          <button
-            style="
-              background:transparent;border:none;color:#5a5a7a;
-              cursor:pointer;font-size:10px;padding:0 3px;
-            "
-            onclick="event.stopPropagation();deleteItem('${item.id}')"
-            title="Delete"
-          >✕</button>
-        </div>
-      </div>
-    `;
-  }).join("");
-
-  // Open URL on click
-  listEl.querySelectorAll("[data-url]").forEach((el) => {
-    el.addEventListener("click", () => {
-      const url = el.getAttribute("data-url");
-      if (url) chrome.tabs.create({ url });
+    // Card container
+    const card = document.createElement("div");
+    card.style.cssText = "background:#13131a;border:1px solid #1e1e2e;border-radius:8px;cursor:pointer;margin-bottom:6px;padding:9px 10px;transition:border-color 0.15s;";
+    card.addEventListener("mouseenter", () => { card.style.borderColor = "#2a2a3c"; });
+    card.addEventListener("mouseleave", () => { card.style.borderColor = "#1e1e2e"; });
+    card.addEventListener("click", () => {
+      if (item.url) chrome.tabs.create({ url: item.url });
     });
+
+    // Row 1: favicon + title + status
+    const row1 = document.createElement("div");
+    row1.style.cssText = "display:flex;align-items:flex-start;gap:6px;margin-bottom:4px";
+
+    const favicon = document.createElement("img");
+    favicon.width = 12;
+    favicon.height = 12;
+    favicon.style.cssText = "border-radius:2px;flex-shrink:0;margin-top:2px";
+    favicon.src = item.clip?.faviconUrl || "";
+    favicon.addEventListener("error", () => { favicon.style.display = "none"; });
+
+    const titleSpan = document.createElement("span");
+    titleSpan.style.cssText = "color:#e8e8f0;font-size:11px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+    titleSpan.title = title;
+    titleSpan.textContent = title || item.url;
+
+    const statusBadge = document.createElement("span");
+    statusBadge.style.cssText = `background:${statusColor}22;border:1px solid ${statusColor}44;border-radius:8px;color:${statusColor};font-size:9px;padding:2px 5px;flex-shrink:0;text-transform:uppercase;`;
+    statusBadge.textContent = status;
+
+    row1.appendChild(favicon);
+    row1.appendChild(titleSpan);
+    row1.appendChild(statusBadge);
+
+    // Row 2: summary
+    if (summary) {
+      const summaryEl = document.createElement("p");
+      summaryEl.style.cssText = "color:#7a7a9a;font-size:10px;line-height:1.4;margin-bottom:4px";
+      summaryEl.textContent = summary + "…";
+      card.appendChild(row1);
+      card.appendChild(summaryEl);
+    } else {
+      card.appendChild(row1);
+    }
+
+    // Row 3: tags + meta + delete
+    const row3 = document.createElement("div");
+    row3.style.cssText = "display:flex;align-items:center;gap:4px;flex-wrap:wrap";
+
+    tags.forEach((tag) => {
+      const tagEl = document.createElement("span");
+      tagEl.style.cssText = "background:#1a1a24;border:1px solid #2a2a3c;border-radius:10px;color:#7a7a9a;font-size:9px;padding:2px 6px;";
+      tagEl.textContent = tag;
+      row3.appendChild(tagEl);
+    });
+
+    const spacer = document.createElement("div");
+    spacer.style.flex = "1";
+    row3.appendChild(spacer);
+
+    const appSpan = document.createElement("span");
+    appSpan.style.cssText = "color:#4a4a6a;font-size:9px";
+    appSpan.textContent = `${appIcons[app] || "🌐"} ${app}`;
+    row3.appendChild(appSpan);
+
+    const dot = document.createElement("span");
+    dot.style.cssText = "color:#3a3a5a;font-size:9px";
+    dot.textContent = "·";
+    row3.appendChild(dot);
+
+    const dateSpan = document.createElement("span");
+    dateSpan.style.cssText = "color:#4a4a6a;font-size:9px";
+    dateSpan.textContent = formatDate(item.savedAt);
+    row3.appendChild(dateSpan);
+
+    const delBtn = document.createElement("button");
+    delBtn.style.cssText = "background:transparent;border:none;color:#5a5a7a;cursor:pointer;font-size:10px;padding:0 3px;";
+    delBtn.title = "Delete";
+    delBtn.textContent = "✕";
+    delBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      deleteItem(item.id);
+    });
+    row3.appendChild(delBtn);
+
+    card.appendChild(row3);
+    fragment.appendChild(card);
   });
+
+  listEl.appendChild(fragment);
 }
 
 function escapeAttr(str) {
@@ -483,9 +525,6 @@ function deleteItem(id) {
     loadCollectionsData();
   });
 }
-
-// Expose for inline onclick handlers
-window.deleteItem = deleteItem;
 
 function exportSavesAsJson() {
   chrome.runtime.sendMessage({ type: "GET_SAVED_ITEMS" }, (resp) => {

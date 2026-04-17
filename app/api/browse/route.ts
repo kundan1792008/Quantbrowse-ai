@@ -36,16 +36,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (
-      !domContent ||
-      typeof domContent !== "string" ||
-      domContent.trim() === ""
-    ) {
-      return NextResponse.json(
-        { error: "A non-empty 'domContent' field is required." },
-        { status: 400 }
-      );
-    }
+    // domContent is optional — pages may legitimately have no extractable text
+    // (e.g. canvas-only apps, restricted pages). Proceed with an empty string.
+    const safeDomContent =
+      typeof domContent === "string" ? domContent.trim() : "";
 
     const openai = getOpenAIClient();
 
@@ -59,7 +53,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const truncatedDom = domContent.slice(0, 12000);
+    const truncatedDom = safeDomContent.slice(0, 12000);
+
+    const domSection = truncatedDom
+      ? `\n\n--- Page Content ---\n${truncatedDom}`
+      : "\n\n--- Page Content ---\n(No page content available — answer based on the user command alone.)";
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -67,7 +65,7 @@ export async function POST(req: NextRequest) {
         { role: "system", content: SYSTEM_PROMPT },
         {
           role: "user",
-          content: `User Command: ${prompt.trim()}\n\n--- Page Content ---\n${truncatedDom}`,
+          content: `User Command: ${prompt.trim()}${domSection}`,
         },
       ],
       max_tokens: 1024,

@@ -3,18 +3,25 @@
 /**
  * Sends the parsed Accessibility Tree and User Intent to the LLM
  * to determine the exact action to execute on the webpage.
+ *
+ * The API key is read from chrome.storage.local so it is never hard-coded.
+ * Users can set their Gemini API key via the extension options page or
+ * directly from the DevTools console:
+ *   chrome.storage.local.set({ geminiApiKey: "YOUR_KEY" })
  */
-async function callPlannerAgentAPI(intent, pageSnapshot) {
+export async function callPlannerAgentAPI(intent, pageSnapshot) {
     console.log("[API Specialist] Preparing payload for LLM Reasoning...");
-    
-    // In a production environment, this key MUST be stored in an encrypted backend 
-    // or provided by the user via extension options. 
-    // For this MVP, we will structure it to accept a standard Gemini / Claude API endpoint.
-    const API_KEY = "YOUR_LLM_API_KEY_HERE"; // Placeholder
-    
-    // If no key is set, we fallback to a smart offline mock for demonstration
-    if (API_KEY === "YOUR_LLM_API_KEY_HERE") {
-        console.warn("[API Specialist] No valid API Key found. Falling back to rule-based mock engine.");
+
+    // Load the key at call-time so it picks up any runtime changes
+    const API_KEY = await new Promise((resolve) => {
+        chrome.storage.local.get('geminiApiKey', ({ geminiApiKey }) => {
+            resolve(typeof geminiApiKey === 'string' && geminiApiKey.trim() ? geminiApiKey.trim() : null);
+        });
+    });
+
+    // If no key is configured, fall back to the deterministic rule engine
+    if (!API_KEY) {
+        console.warn("[API Specialist] No Gemini API key found in storage. Falling back to rule-based mock engine.");
         return fallbackRuleBasedEngine(intent, pageSnapshot);
     }
 
@@ -28,7 +35,7 @@ Your job is to find the single most appropriate element to interact with to fulf
 
 Respond strictly in JSON format:
 {
-  "action": "click" | "type" | "NONE",
+  "action": "click" | "type" | "scroll" | "hover" | "submit" | "NONE",
   "elementId": "the agent-id of the chosen element",
   "value": "string to type if action is type, else null",
   "reasoning": "Brief explanation of why you chose this"
@@ -42,8 +49,7 @@ ${JSON.stringify(pageSnapshot.elements, null, 2)}
     `;
 
     try {
-        // Example: Fetching from Google Gemini API
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -80,7 +86,8 @@ function fallbackRuleBasedEngine(intent, pageSnapshot) {
     return new Promise((resolve) => {
         setTimeout(() => {
             if (!pageSnapshot || !pageSnapshot.elements || pageSnapshot.elements.length === 0) {
-                return resolve({ action: 'NONE', reason: 'No interactive elements found.' });
+                resolve({ action: 'NONE', reason: 'No interactive elements found.' });
+                return;
             }
 
             const intentWords = intent.toLowerCase().split(' ');
@@ -111,7 +118,7 @@ function fallbackRuleBasedEngine(intent, pageSnapshot) {
                  if (intentWords.includes('type') || bestMatch.role === 'input' || bestMatch.type === 'text') {
                      // Extract what to type (everything after 'type')
                      let textToType = intent;
-                     if(intent.toLowerCase().includes('type')) {
+                     if (intent.toLowerCase().includes('type')) {
                          textToType = intent.split(/type/i)[1].trim();
                      }
                      resolve({ action: 'type', elementId: bestMatch.id, value: textToType, reasoning: "Matched via fallback engine" });

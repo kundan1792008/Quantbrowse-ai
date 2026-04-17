@@ -569,15 +569,7 @@
     let dragOffsetX = 0;
     let dragOffsetY = 0;
 
-    header.addEventListener("mousedown", (event) => {
-      isDragging = true;
-      const rect = panel.getBoundingClientRect();
-      dragOffsetX = event.clientX - rect.left;
-      dragOffsetY = event.clientY - rect.top;
-      event.preventDefault();
-    });
-
-    document.addEventListener("mousemove", (event) => {
+    const handleDragMove = (event) => {
       if (!isDragging) return;
       const x = event.clientX - dragOffsetX;
       const y = event.clientY - dragOffsetY;
@@ -587,19 +579,33 @@
         right: "auto",
         bottom: "auto",
       });
-    });
+    };
 
-    document.addEventListener("mouseup", () => {
+    const stopDrag = () => {
       isDragging = false;
+      document.removeEventListener("mousemove", handleDragMove);
+    };
+
+    header.addEventListener("mousedown", (event) => {
+      isDragging = true;
+      const rect = panel.getBoundingClientRect();
+      dragOffsetX = event.clientX - rect.left;
+      dragOffsetY = event.clientY - rect.top;
+      document.addEventListener("mousemove", handleDragMove);
+      document.addEventListener("mouseup", stopDrag, { once: true });
+      event.preventDefault();
     });
 
     document.documentElement.appendChild(host);
     window.__qbaOverlay__ = { openPanel, closePanel, togglePanel, showResult };
   }
 
-  function registerTab() {
+  function registerTab(attemptsLeft = 1) {
     chrome.runtime.sendMessage({ type: "REGISTER_TAB" }).catch((err) => {
       console.warn("Quantbrowse: unable to register tab", err);
+      if (attemptsLeft > 0) {
+        setTimeout(() => registerTab(attemptsLeft - 1), 5000);
+      }
     });
   }
 

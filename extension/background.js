@@ -28,7 +28,7 @@ const MAX_SURPRISE_CHANCE = 0.85;
  *             createdAt: number, updatedAt: number }} AgentTask
  */
 class SwarmCoordinator {
-  static MAX_TASKS = 1000; // Cap to bound memory; linear eviction is acceptable at this size.
+  static MAX_TASKS = 200; // Cap to bound memory; keeps eviction work small.
 
   /** @type {Map<string, AgentTask>} */
   #tasks = new Map();
@@ -103,6 +103,7 @@ class SwarmCoordinator {
       if (task.status === "pending") pending += 1;
       else if (task.status === "running") running += 1;
       else if (task.status === "complete") complete += 1;
+      else if (task.status === "failed") failed += 1;
       else failed += 1;
     }
     return { total: this.#tasks.size, pending, running, complete, failed };
@@ -694,11 +695,6 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 chrome.tabs.onRemoved.addListener((tabId) => {
   activeTabs.delete(tabId);
   withReady(() => handleTabRemoved(tabId));
-});
-
-chrome.webNavigation.onCompleted.addListener(({ tabId, frameId }) => {
-  if (frameId !== 0) return;
-  activeTabs.add(tabId);
 });
 
 chrome.windows.onFocusChanged.addListener((windowId) => {

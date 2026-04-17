@@ -34,7 +34,6 @@
     "storage",
     "tabGroups",
     "tabs",
-    "webNavigation",
     "declarativeNetRequest"
   ],
   "host_permissions": [

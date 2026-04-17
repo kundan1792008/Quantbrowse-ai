@@ -12,7 +12,19 @@
  * from the DevTools console while the extension is loaded in developer mode.
  */
 
+import { ContentClipper } from "./clipper/clipper.js";
+import { StorageService } from "./clipper/storage.js";
+import { GemmaTagger } from "./clipper/tagger.js";
+import { UniversalSaver } from "./clipper/saver.js";
+
 const DEFAULT_API_BASE_URL = "http://localhost:3000";
+const CLIPPER_ALARM = "qba_flush_queue";
+const CONTEXT_MENU_IDS = {
+  SAVE_PAGE: "qba_save_page",
+  SAVE_SELECTION: "qba_save_selection",
+  SAVE_LINK: "qba_save_link",
+  SAVE_IMAGE: "qba_save_image",
+};
 
 // ─── SwarmCoordinator ──────────────────────────────────────────────────────
 
@@ -128,6 +140,10 @@ class SwarmCoordinator {
 }
 
 const swarm = new SwarmCoordinator();
+const storage = new StorageService();
+const tagger = new GemmaTagger();
+const saver = new UniversalSaver({ storage, tagger, getApiBaseUrl });
+const clipper = new ContentClipper({ storage });
 
 // ─── Cross-Tab Message Bus ─────────────────────────────────────────────────
 
@@ -215,6 +231,107 @@ async function getDomContent(tabId) {
     // Restricted page (chrome://, extensions page, etc.) — proceed with empty context
     return "";
   }
+}
+
+// ─── Universal Clipper Setup ────────────────────────────────────────────────
+
+async function ensureClipperReady() {
+  await storage.ensureSchema();
+  await setupContextMenus();
+  scheduleQueueFlush();
+}
+
+function scheduleQueueFlush() {
+  chrome.alarms.create(CLIPPER_ALARM, { periodInMinutes: 5 });
+}
+
+chrome.runtime.onInstalled.addListener(() => {
+  ensureClipperReady();
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  ensureClipperReady();
+});
+
+ensureClipperReady();
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name !== CLIPPER_ALARM) return;
+  saver.flushQueue().catch((error) => {
+    console.warn("Queue flush failed:", error);
+  });
+});
+
+function setupContextMenus() {
+  return new Promise((resolve) => {
+    chrome.contextMenus.removeAll(() => {
+      chrome.contextMenus.create({
+        id: CONTEXT_MENU_IDS.SAVE_PAGE,
+        title: "Save page to Quantbrowse",
+        contexts: ["page", "frame"],
+      });
+      chrome.contextMenus.create({
+        id: CONTEXT_MENU_IDS.SAVE_SELECTION,
+        title: "Save selection to Quantbrowse",
+        contexts: ["selection"],
+      });
+      chrome.contextMenus.create({
+        id: CONTEXT_MENU_IDS.SAVE_LINK,
+        title: "Save link to Quantbrowse",
+        contexts: ["link"],
+      });
+      chrome.contextMenus.create({
+        id: CONTEXT_MENU_IDS.SAVE_IMAGE,
+        title: "Save image to Quantbrowse",
+        contexts: ["image"],
+      });
+      resolve();
+    });
+  });
+}
+
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (!info?.menuItemId) return;
+  if (!Object.values(CONTEXT_MENU_IDS).includes(info.menuItemId)) return;
+  handleContextMenuSave(info, tab);
+});
+
+async function handleContextMenuSave(info, tab) {
+  try {
+    const clip = await clipper.captureFromContextMenu(tab, info);
+    const saved = await saver.saveClip(clip);
+    await notifyClipSaved(saved);
+    await chrome.runtime
+      .sendMessage({
+        type: "CLIP_SAVED",
+        clip: saved,
+      })
+      .catch(() => undefined);
+  } catch (error) {
+    await notifyClipError(error);
+  }
+}
+
+async function notifyClipSaved(clip) {
+  const { preferences } = await storage.getState();
+  if (!preferences.showNotifications) return;
+  chrome.notifications.create({
+    type: "basic",
+    iconUrl: "icons/icon48.png",
+    title: "Saved to Quantbrowse",
+    message: clip?.title || "Clip saved",
+  });
+}
+
+async function notifyClipError(error) {
+  const { preferences } = await storage.getState();
+  if (!preferences.showNotifications) return;
+  chrome.notifications.create({
+    type: "basic",
+    iconUrl: "icons/icon48.png",
+    title: "Quantbrowse save failed",
+    message: String(error || "Unable to save clip."),
+  });
 }
 
 // ─── Main Message Handler ──────────────────────────────────────────────────
@@ -329,8 +446,109 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return false;
     }
 
+    // ── Universal clipper: quick save from popup ───────────────────────────
+    case "CLIPPER_SAVE": {
+      const captureMode = message.captureMode || "page";
+      (async () => {
+        try {
+          const [tab] = await chrome.tabs.query({
+            active: true,
+            currentWindow: true,
+          });
+          if (!tab?.id) {
+            sendResponse({ success: false, error: "No active tab found." });
+            return;
+          }
+          const clip = await clipper.captureFromPopup(tab, captureMode);
+          const saved = await saver.saveClip(clip);
+          sendResponse({ success: true, clip: saved });
+          await chrome.runtime
+            .sendMessage({ type: "CLIP_SAVED", clip: saved })
+            .catch(() => undefined);
+        } catch (error) {
+          sendResponse({ success: false, error: String(error) });
+        }
+      })();
+      return true;
+    }
+
+    // ── Collections state for UI ──────────────────────────────────────────
+    case "COLLECTIONS_STATE": {
+      (async () => {
+        const state = await storage.getState();
+        sendResponse({ success: true, state });
+      })();
+      return true;
+    }
+
+    case "COLLECTIONS_UPDATE": {
+      (async () => {
+        const { clipId, patch } = message;
+        if (!clipId || !patch) {
+          sendResponse({ success: false, error: "clipId and patch are required." });
+          return;
+        }
+        const updated = await saver.updateClip(clipId, patch);
+        sendResponse({ success: true, clip: updated.clip });
+      })();
+      return true;
+    }
+
+    case "COLLECTIONS_DELETE": {
+      (async () => {
+        const { clipId } = message;
+        if (!clipId) {
+          sendResponse({ success: false, error: "clipId is required." });
+          return;
+        }
+        await saver.deleteClip(clipId);
+        sendResponse({ success: true });
+      })();
+      return true;
+    }
+
+    case "COLLECTIONS_REFRESH_TAGS": {
+      (async () => {
+        const { clipId } = message;
+        if (!clipId) {
+          sendResponse({ success: false, error: "clipId is required." });
+          return;
+        }
+        const clip = await saver.refreshTags(clipId);
+        sendResponse({ success: true, clip });
+      })();
+      return true;
+    }
+
+    case "QUEUE_STATS": {
+      (async () => {
+        const state = await storage.getState();
+        sendResponse({
+          success: true,
+          queue: state.offlineQueue,
+          stats: state.stats,
+        });
+      })();
+      return true;
+    }
+
+    case "QUEUE_FLUSH": {
+      (async () => {
+        const result = await saver.flushQueue();
+        sendResponse({ success: true, result });
+      })();
+      return true;
+    }
+
+    case "PREFERENCES_UPDATE": {
+      (async () => {
+        const next = await storage.setPreferences(message.preferences || {});
+        sendResponse({ success: true, preferences: next });
+      })();
+      return true;
+    }
+
     default:
       return false;
   }
 });
-

@@ -10,10 +10,17 @@ Quantbrowse-ai/
 │   └── api/
 │       └── browse/
 │           └── route.ts      # Next.js AI processing endpoint
+│       └── collections/
+│           └── sync/
+│               └── route.ts  # Clip sync endpoint for the Universal Saver
 ├── extension/
+│   ├── clipper/               # ContentClipper, Gemma tagger, storage helpers
 │   ├── manifest.json         # Chrome Extension Manifest V3
 │   ├── background.js         # Service worker (orchestrates API calls)
 │   ├── content.js            # DOM extractor (injected into web pages)
+│   ├── collections.html      # Collections UI
+│   ├── collections.css       # Collections styling
+│   ├── collections.js        # Collections search/export logic
 │   ├── popup.html            # Extension popup UI
 │   └── popup.js              # Popup interaction logic
 ├── .env.example              # Environment variable template
@@ -78,9 +85,9 @@ The extension's `background.js` defaults to `http://localhost:3000`. For product
 ### 3. Use the extension
 
 1. Navigate to any webpage
-2. Click the **Quantbrowse AI** icon
-3. Type a command (e.g. _"Summarize this article"_, _"Extract all prices"_)
-4. Press **Run AI Command** or `Ctrl+Enter`
+2. Right-click anywhere to **Save page** / **Save selection** with the Universal Web Clipper
+3. Click the **Quantbrowse AI** icon to run AI commands or open **Collections**
+4. Search, filter, and export clips directly from the Collections dashboard
 
 ---
 

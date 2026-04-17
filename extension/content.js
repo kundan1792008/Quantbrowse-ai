@@ -380,6 +380,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       return true;
     }
 
+    // ── Universal clipper context ─────────────────────────────────────────
+    case "GET_CLIP_CONTEXT": {
+      try {
+        sendResponse({ success: true, context: buildClipContext() });
+      } catch (err) {
+        sendResponse({ success: false, error: String(err) });
+      }
+      return true;
+    }
+
     // ── Overlay control commands (sent from background or other tabs) ──────
     case "OVERLAY_SHOW": {
       window.__qbaOverlay__?.openPanel();
@@ -463,3 +473,206 @@ function extractVisibleText() {
   return parts.join(" ").replace(/\s{2,}/g, " ").trim().slice(0, 12000);
 }
 
+// ─── Universal Clipper Context ──────────────────────────────────────────────
+
+function buildClipContext() {
+  const selection = getSelectionData();
+  const page = collectPageMetadata();
+  const content = collectContent(selection);
+  return { selection, page, content };
+}
+
+function collectPageMetadata() {
+  const meta = (name) =>
+    document.querySelector(`meta[name='${name}']`)?.getAttribute("content") ||
+    document.querySelector(`meta[property='${name}']`)?.getAttribute("content") ||
+    "";
+
+  const favicon =
+    document.querySelector("link[rel='icon']")?.getAttribute("href") ||
+    document.querySelector("link[rel='shortcut icon']")?.getAttribute("href") ||
+    "";
+
+  return {
+    title: document.title || "",
+    url: window.location.href,
+    description: meta("description") || meta("og:description"),
+    siteName: meta("og:site_name") || window.location.hostname,
+    author: meta("author"),
+    publishedAt: meta("article:published_time") || meta("date"),
+    language: document.documentElement.lang || "",
+    keywords: meta("keywords"),
+    favicon: resolveUrl(favicon),
+    device: navigator.userAgent,
+    viewport: {
+      width: window.innerWidth,
+      height: window.innerHeight,
+      devicePixelRatio: window.devicePixelRatio || 1,
+    },
+  };
+}
+
+function collectContent(selection) {
+  const mainNode = findMainContentNode();
+  const text = extractTextFromNode(mainNode);
+  const headings = collectHeadings(mainNode);
+  const links = collectLinks(mainNode);
+  const images = collectImages(mainNode);
+  const outline = buildOutline(headings);
+
+  return {
+    text: text.slice(0, 20000),
+    html: sanitizeHtml(mainNode?.innerHTML || "").slice(0, 20000),
+    summary: summarizeText(text, 3),
+    headings,
+    links,
+    images,
+    outline,
+    highlights: selection?.text
+      ? [{ text: selection.text, createdAt: Date.now() }]
+      : [],
+  };
+}
+
+function getSelectionData() {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) return null;
+  const range = selection.getRangeAt(0);
+  const container = document.createElement("div");
+  container.appendChild(range.cloneContents());
+  const html = container.innerHTML.trim();
+  const text = selection.toString().trim();
+  if (!text) return null;
+
+  const rect = range.getBoundingClientRect();
+
+  return {
+    text: text.slice(0, 8000),
+    html: html.slice(0, 8000),
+    markdown: htmlToMarkdown(html).slice(0, 8000),
+    boundingRect: {
+      x: rect.x,
+      y: rect.y,
+      width: rect.width,
+      height: rect.height,
+    },
+  };
+}
+
+function findMainContentNode() {
+  const candidates = [
+    document.querySelector("article"),
+    document.querySelector("main"),
+    document.querySelector("[role='main']"),
+    document.body,
+  ];
+  return candidates.find(Boolean) || document.body;
+}
+
+function extractTextFromNode(node) {
+  if (!node) return "";
+  const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT, {
+    acceptNode(textNode) {
+      if (!textNode.parentElement) return NodeFilter.FILTER_REJECT;
+      const style = window.getComputedStyle(textNode.parentElement);
+      if (style.display === "none" || style.visibility === "hidden") {
+        return NodeFilter.FILTER_REJECT;
+      }
+      return NodeFilter.FILTER_ACCEPT;
+    },
+  });
+  const parts = [];
+  let current;
+  while ((current = walker.nextNode())) {
+    const value = current.textContent.trim();
+    if (value) parts.push(value);
+  }
+  return parts.join(" ").replace(/\s{2,}/g, " ").trim();
+}
+
+function collectHeadings(root) {
+  const headings = [];
+  root.querySelectorAll("h1, h2, h3, h4").forEach((el) => {
+    const text = el.textContent.trim();
+    if (!text) return;
+    headings.push({
+      level: Number(el.tagName.replace("H", "")),
+      text,
+    });
+  });
+  return headings.slice(0, 24);
+}
+
+function collectLinks(root) {
+  const links = [];
+  root.querySelectorAll("a[href]").forEach((link) => {
+    const text = link.textContent.trim();
+    const href = link.getAttribute("href") || "";
+    if (!href) return;
+    links.push({
+      text: text || href,
+      url: resolveUrl(href),
+    });
+  });
+  return links.slice(0, 40);
+}
+
+function collectImages(root) {
+  const images = [];
+  root.querySelectorAll("img[src]").forEach((img) => {
+    images.push({
+      src: resolveUrl(img.getAttribute("src")),
+      alt: img.getAttribute("alt") || "",
+      width: img.naturalWidth || img.width || 0,
+      height: img.naturalHeight || img.height || 0,
+    });
+  });
+  return images.slice(0, 16);
+}
+
+function buildOutline(headings) {
+  const outline = [];
+  headings.forEach((heading) => {
+    outline.push(`${"  ".repeat(Math.max(0, heading.level - 1))}- ${heading.text}`);
+  });
+  return outline;
+}
+
+function resolveUrl(path) {
+  if (!path) return "";
+  try {
+    return new URL(path, window.location.href).toString();
+  } catch {
+    return path;
+  }
+}
+
+function summarizeText(text, sentenceCount = 3) {
+  const sentences = text
+    .replace(/\s+/g, " ")
+    .split(/(?<=[.!?])\s+/)
+    .filter(Boolean);
+  return sentences.slice(0, sentenceCount).join(" ");
+}
+
+function sanitizeHtml(html) {
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  template.content
+    .querySelectorAll("script, style, noscript")
+    .forEach((node) => node.remove());
+  return template.innerHTML;
+}
+
+function htmlToMarkdown(html) {
+  if (!html) return "";
+  const temp = document.createElement("div");
+  temp.innerHTML = html;
+  temp.querySelectorAll("br").forEach((node) => node.replaceWith("\n"));
+  temp.querySelectorAll("a").forEach((node) => {
+    const text = node.textContent || node.getAttribute("href") || "";
+    const href = node.getAttribute("href") || "";
+    node.replaceWith(`${text}${href ? ` (${href})` : ""}`);
+  });
+  return temp.textContent || "";
+}

@@ -104,7 +104,10 @@ class SwarmCoordinator {
       else if (task.status === "running") running += 1;
       else if (task.status === "complete") complete += 1;
       else if (task.status === "failed") failed += 1;
-      else failed += 1;
+      else {
+        failed += 1;
+        console.warn("Quantbrowse: unexpected task status", task.status);
+      }
     }
     return { total: this.#tasks.size, pending, running, complete, failed };
   }

@@ -584,6 +584,7 @@
     const stopDrag = () => {
       isDragging = false;
       document.removeEventListener("mousemove", handleDragMove);
+      document.removeEventListener("mouseup", stopDrag);
     };
 
     header.addEventListener("mousedown", (event) => {
@@ -592,7 +593,7 @@
       dragOffsetX = event.clientX - rect.left;
       dragOffsetY = event.clientY - rect.top;
       document.addEventListener("mousemove", handleDragMove);
-      document.addEventListener("mouseup", stopDrag, { once: true });
+      document.addEventListener("mouseup", stopDrag);
       event.preventDefault();
     });
 
@@ -600,11 +601,11 @@
     window.__qbaOverlay__ = { openPanel, closePanel, togglePanel, showResult };
   }
 
-  function registerTab(attemptsLeft = 1) {
+  function registerTab(retriesRemaining = 1) {
     chrome.runtime.sendMessage({ type: "REGISTER_TAB" }).catch((err) => {
       console.warn("Quantbrowse: unable to register tab", err);
-      if (attemptsLeft > 0) {
-        setTimeout(() => registerTab(attemptsLeft - 1), 5000);
+      if (retriesRemaining > 0) {
+        setTimeout(() => registerTab(retriesRemaining - 1), 5000);
       }
     });
   }

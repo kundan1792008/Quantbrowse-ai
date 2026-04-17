@@ -9,6 +9,7 @@ const DEFAULT_API_BASE_URL = "http://localhost:3000";
 const STORAGE_VERSION = 1;
 const NOTIFICATION_ICON =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAZUlEQVR42u3QQREAAAQAMF3d6S8BOZw9VmCR1fNZCBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAfctS5+Shk5p5qQAAAAASUVORK5CYII=";
+const MAX_SURPRISE_CHANCE = 0.85;
 
 const STORAGE_KEYS = {
   usage: "ambientUsage",
@@ -1024,6 +1025,7 @@ function recordUsage(domain, url, title, durationMs, start, end) {
   domainEntry.lastVisited = end;
 
   if (day.sessions.length >= state.settings.maxSessionsPerDay) {
+    // Keep the most recent sessions only to cap storage size per day.
     day.sessions.shift();
   }
   day.sessions.push({
@@ -1323,7 +1325,7 @@ async function maybeCreateSurpriseBookmark(source) {
   const today = state.usage.days[todayKey] ?? createEmptyDay(todayKey);
   const score = computeProductivityScore(today);
   const chanceBoost = score >= 70 ? 0.18 : score >= 50 ? 0.08 : 0;
-  const chance = Math.min(0.85, state.settings.surpriseChance + chanceBoost);
+  const chance = Math.min(MAX_SURPRISE_CHANCE, state.settings.surpriseChance + chanceBoost);
   if (Math.random() > chance) return;
 
   const candidates = Object.values(today.domains)

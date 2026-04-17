@@ -34,9 +34,13 @@ groupTabsBtn.addEventListener("click", () => chrome.runtime.sendMessage({ type: 
 digestBtn.addEventListener("click", () => chrome.runtime.sendMessage({ type: "TRIGGER_DIGEST" }));
 surpriseBtn.addEventListener("click", () => chrome.runtime.sendMessage({ type: "SURPRISE_BOOKMARK" }));
 
-refreshDashboard();
-const refreshInterval = setInterval(refreshDashboard, 60000);
-window.addEventListener("unload", () => clearInterval(refreshInterval));
+let refreshInterval = null;
+startDashboardRefresh();
+window.addEventListener("unload", () => {
+  if (refreshInterval) {
+    clearInterval(refreshInterval);
+  }
+});
 
 function setLoading(loading) {
   runBtn.disabled = loading;
@@ -126,6 +130,14 @@ async function refreshDashboard() {
   } else {
     digestPreviewEl.textContent = "";
   }
+}
+
+function startDashboardRefresh() {
+  refreshDashboard();
+  if (refreshInterval) {
+    clearInterval(refreshInterval);
+  }
+  refreshInterval = setInterval(refreshDashboard, 60000);
 }
 
 function formatDuration(ms) {

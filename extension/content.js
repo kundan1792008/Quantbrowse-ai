@@ -20,6 +20,7 @@
   };
 
   const HEARTBEAT_INTERVAL_MS = 30000;
+  const HEARTBEAT_THROTTLE_MS = 5000;
   const DASHBOARD_REFRESH_MS = 60000;
   const DASHBOARD_ID = "quantbrowse-ambient-dashboard";
   const NUDGE_ID = "quantbrowse-ambient-nudge";
@@ -338,7 +339,7 @@
 
   function sendHeartbeat(reason) {
     const now = Date.now();
-    if (now - STATE.lastHeartbeat < 5000 && reason !== "visibility") return;
+    if (now - STATE.lastHeartbeat < HEARTBEAT_THROTTLE_MS && reason !== "visibility") return;
     STATE.lastHeartbeat = now;
     chrome.runtime.sendMessage({
       type: "PAGE_HEARTBEAT",

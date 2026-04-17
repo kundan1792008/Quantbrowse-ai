@@ -28,7 +28,7 @@ const MAX_SURPRISE_CHANCE = 0.85;
  *             createdAt: number, updatedAt: number }} AgentTask
  */
 class SwarmCoordinator {
-  static MAX_TASKS = 1000;
+  static MAX_TASKS = 1000; // Cap to bound memory; linear eviction is acceptable at this size.
 
   /** @type {Map<string, AgentTask>} */
   #tasks = new Map();
@@ -110,6 +110,7 @@ class SwarmCoordinator {
 
   /** Removes the single oldest completed/failed task to free one slot. */
   #evictOldestCompleted() {
+    // Linear scan is sufficient given the MAX_TASKS bound.
     let oldest = null;
     for (const task of this.#tasks.values()) {
       if (task.status !== "complete" && task.status !== "failed") continue;

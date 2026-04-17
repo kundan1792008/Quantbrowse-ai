@@ -18,10 +18,9 @@ const groupTabsBtn = document.getElementById("groupTabsBtn");
 const digestBtn = document.getElementById("digestBtn");
 const surpriseBtn = document.getElementById("surpriseBtn");
 
-refreshSwarmStats();
-
 chrome.storage.local.get("lastPrompt", ({ lastPrompt }) => {
   if (lastPrompt) promptInput.value = lastPrompt;
+  refreshSwarmStats();
 });
 
 promptInput.addEventListener("keydown", (event) => {

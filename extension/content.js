@@ -295,7 +295,7 @@
       overflow: "visible",
     });
 
-    const shadow = host.attachShadow({ mode: "closed" });
+    const shadow = host.attachShadow({ mode: "open" });
 
     shadow.innerHTML = `
       <style>
@@ -598,8 +598,8 @@
   }
 
   function registerTab() {
-    chrome.runtime.sendMessage({ type: "REGISTER_TAB" }).catch(() => {
-      // Extension may not be ready yet on very early page loads.
+    chrome.runtime.sendMessage({ type: "REGISTER_TAB" }).catch((err) => {
+      console.warn("Quantbrowse: unable to register tab", err);
     });
   }
 

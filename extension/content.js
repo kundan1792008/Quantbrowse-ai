@@ -246,6 +246,10 @@ function injectOverlay() {
     fab.style.display = "flex";
   }
 
+  function togglePanel() {
+    panel.classList.contains("visible") ? closePanel() : openPanel();
+  }
+
   fab.addEventListener("click", openPanel);
   closeBtn.addEventListener("click", closePanel);
 
@@ -340,11 +344,20 @@ function injectOverlay() {
   document.documentElement.appendChild(host);
 
   // Expose controlled surface for message-driven interactions
-  window.__qbaOverlay__ = { openPanel, closePanel, showResult };
+  window.__qbaOverlay__ = { openPanel, closePanel, togglePanel, showResult };
 }
 
 // Inject immediately when the content script loads
 injectOverlay();
+
+// ─── Keyboard Shortcut — Alt+Q toggles the overlay ────────────────────────
+
+document.addEventListener("keydown", (e) => {
+  if (e.altKey && e.key === "q") {
+    e.preventDefault();
+    window.__qbaOverlay__?.togglePanel();
+  }
+});
 
 // ─── Tab Registration ──────────────────────────────────────────────────────
 

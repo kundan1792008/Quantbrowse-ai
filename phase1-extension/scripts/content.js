@@ -48,11 +48,23 @@ window.getA11ySnapshot = function() {
   window.executeAction = function(agentCommand) {
       console.log("[QuantBrowse Agent] Executing command:", agentCommand);
       
-      if (!agentCommand || !agentCommand.elementId) {
+      if (!agentCommand || !agentCommand.action) {
           console.error("Invalid command format.");
           return { success: false, reason: "Invalid command" };
       }
-  
+
+      // scroll and navigate don't require an elementId
+      if (agentCommand.action === 'scroll') {
+          const amount = typeof agentCommand.value === 'number' ? agentCommand.value : 300;
+          window.scrollBy({ top: amount, behavior: 'smooth' });
+          return { success: true };
+      }
+
+      if (!agentCommand.elementId) {
+          console.error("Command missing elementId.");
+          return { success: false, reason: "Missing elementId" };
+      }
+
       // Find the exact element we tagged earlier
       const targetElement = document.querySelector(`[data-agent-id="${agentCommand.elementId}"]`);
       
@@ -60,7 +72,7 @@ window.getA11ySnapshot = function() {
           console.error("Stale DOM: Element not found on page anymore.");
           return { success: false, reason: "Element not found" };
       }
-  
+
       // Inject human-like events
       try {
           // Highlight it briefly for UX feedback
@@ -69,31 +81,48 @@ window.getA11ySnapshot = function() {
           targetElement.style.transition = "outline 0.3s";
           
           setTimeout(() => { targetElement.style.outline = originalOutline; }, 1000);
-  
+
           if (agentCommand.action === 'click') {
               // Simulate real mouse click sequence to bypass simple bot detection
               targetElement.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
               targetElement.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
               targetElement.click();
               targetElement.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
-              
               return { success: true };
-          } 
-          else if (agentCommand.action === 'type' && agentCommand.value) {
+          }
+
+          if (agentCommand.action === 'type' && agentCommand.value !== null && agentCommand.value !== undefined) {
               // Focus and type
               targetElement.focus();
               targetElement.value = agentCommand.value;
-              
               // Dispatch input events so React/Vue frameworks register the change
               targetElement.dispatchEvent(new Event('input', { bubbles: true }));
               targetElement.dispatchEvent(new Event('change', { bubbles: true }));
-              
               return { success: true };
           }
+
+          if (agentCommand.action === 'hover') {
+              targetElement.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+              targetElement.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+              return { success: true };
+          }
+
+          if (agentCommand.action === 'submit') {
+              // Try to find the closest form and submit it
+              const form = targetElement.closest('form');
+              if (form) {
+                  form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+                  return { success: true };
+              }
+              // Fallback: click if no form found
+              targetElement.click();
+              return { success: true };
+          }
+
       } catch (err) {
           console.error("Agent failed to execute action on DOM node:", err);
           return { success: false, reason: err.message };
       }
       
-      return { success: false, reason: "Unknown action type" };
+      return { success: false, reason: `Unknown action type: ${agentCommand.action}` };
   };

@@ -163,6 +163,14 @@ async function broadcastToTabs(payload, excludeTabId = null) {
 // Keep activeTabs consistent with tab lifecycle events
 chrome.tabs.onRemoved.addListener((tabId) => activeTabs.delete(tabId));
 
+// Auto-register any tab that completes navigation so activeTabs stays accurate
+// even when the content script fires before the service worker was ready.
+chrome.webNavigation.onCompleted.addListener(({ tabId, frameId }) => {
+  // Only care about the top-level frame
+  if (frameId !== 0) return;
+  activeTabs.add(tabId);
+});
+
 // ─── API Helpers ───────────────────────────────────────────────────────────
 
 /**

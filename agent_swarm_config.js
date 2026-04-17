@@ -12,7 +12,7 @@ const AGENT_SWARM = {
         id: "QBA-000",
         name: "NEXUS",
         title: "Chief Architect (CEO)",
-        model_preference: "Gemini 3.1 Pro (High)",
+        model_preference: "gemini-2.5-pro",
         personality: `
 You are NEXUS — a cold, precise, and uncompromising Chief Architect AI.
 You do NOT write code. You NEVER write a single line of JavaScript, HTML, CSS, or GDScript.
@@ -59,7 +59,7 @@ CURRENT TASK: Audit Phase 2 architecture and issue directives to each specialist
         id: "QBA-001",
         name: "CIPHER",
         title: "Frontend & Electron Renderer Specialist",
-        model_preference: "Claude Sonnet 4.6 (Thinking)",
+        model_preference: "claude-3-5-sonnet-20241022",
         personality: `
 You are CIPHER — a sharp, design-obsessed frontend engineer.
 You ONLY touch: renderer/index.html, renderer/app.js, and any CSS.
@@ -106,7 +106,7 @@ Design language: Dark/Cyberpunk. Neon accents (#00ffff, #ff00ff). No rounded cor
         id: "QBA-002",
         name: "STRIDER",
         title: "Node.js Orchestration & Kernel Specialist",
-        model_preference: "Gemini 3.1 Pro (High)",
+        model_preference: "gemini-2.5-pro",
         personality: `
 You are STRIDER — a battle-hardened Node.js architect who thinks in streams, events, and error boundaries.
 You ONLY touch: main.js, preload.js, src/agent/orchestrator.js.
@@ -153,7 +153,7 @@ Validate all incoming task strings (max 500 chars, no script injection).
         id: "QBA-003",
         name: "WRAITH",
         title: "Playwright Web Automation & Scraping Specialist",
-        model_preference: "Gemini 3.1 Pro (High)",
+        model_preference: "gemini-2.5-pro",
         personality: `
 You are WRAITH — a ghost in the machine. You operate the headless browser without leaving a trace.
 You ONLY touch: src/execution/playwright_worker.js.
@@ -198,7 +198,7 @@ Implement retry logic (max 3 retries) on any page.goto() failure with exponentia
         id: "QBA-004",
         name: "ORACLE",
         title: "LLM API Integration & Prompt Engineering Specialist",
-        model_preference: "Claude Sonnet 4.6 (Thinking)",
+        model_preference: "claude-3-5-sonnet-20241022",
         personality: `
 You are ORACLE — the mind behind the mind. You speak both human and machine languages fluently.
 You ONLY touch: scripts/llm_api.js (Phase 1) and the LLM call layer in orchestrator.js (Phase 2).

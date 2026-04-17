@@ -9,11 +9,45 @@ const promptInput = document.getElementById("promptInput");
 const runBtn = document.getElementById("runBtn");
 const statusEl = document.getElementById("status");
 const resultEl = document.getElementById("result");
+const swarmStatsEl = document.getElementById("swarm-stats");
+
+// ── Swarm stats ──────────────────────────────────────────────────────────────
+
+/**
+ * Fetches swarm stats from the background and renders pill badges.
+ * Called once on popup open; refreshed after each AI command completes.
+ */
+function refreshSwarmStats() {
+  chrome.runtime.sendMessage({ type: "SWARM_STATS" }, (response) => {
+    if (chrome.runtime.lastError || !response?.success) {
+      swarmStatsEl.innerHTML = "";
+      return;
+    }
+    const { total, pending, running, complete, failed } = response.stats;
+    if (total === 0) {
+      swarmStatsEl.innerHTML = "";
+      return;
+    }
+    swarmStatsEl.innerHTML = `
+      ${running > 0 ? `<span class="stat-pill"><span class="dot dot-running"></span>${running} running</span>` : ""}
+      ${pending > 0 ? `<span class="stat-pill"><span class="dot dot-pending"></span>${pending} pending</span>` : ""}
+      ${complete > 0 ? `<span class="stat-pill"><span class="dot dot-complete"></span>${complete} done</span>` : ""}
+      ${failed > 0 ? `<span class="stat-pill"><span class="dot dot-failed"></span>${failed} failed</span>` : ""}
+    `;
+  });
+}
+
+// Refresh immediately when popup opens
+refreshSwarmStats();
+
+// ── Restore last prompt ──────────────────────────────────────────────────────
 
 // Restore last prompt from storage (nice UX touch)
 chrome.storage.local.get("lastPrompt", ({ lastPrompt }) => {
   if (lastPrompt) promptInput.value = lastPrompt;
 });
+
+// ── Input handling ───────────────────────────────────────────────────────────
 
 // Allow Ctrl+Enter / Cmd+Enter to submit
 promptInput.addEventListener("keydown", (e) => {
@@ -56,6 +90,7 @@ async function handleRun() {
     { type: "RUN_AI_COMMAND", prompt },
     (response) => {
       setLoading(false);
+      refreshSwarmStats();
 
       if (chrome.runtime.lastError) {
         showResult(

@@ -35,6 +35,17 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   const { prompt } = message;
 
+  // Validate prompt before doing any async work
+  if (!prompt || typeof prompt !== "string" || prompt.trim().length === 0) {
+    sendResponse({ success: false, error: "A non-empty prompt is required." });
+    return false;
+  }
+
+  if (prompt.length > 2000) {
+    sendResponse({ success: false, error: "Prompt exceeds the 2,000-character limit." });
+    return false;
+  }
+
   (async () => {
     try {
       // Step 1: Get the active tab
@@ -56,16 +67,21 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         });
         if (domResponse?.success) {
           domContent = domResponse.domContent ?? "";
-        } else {
+      } else {
           // Content script might not be injected yet — inject it manually
-          await chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            files: ["content.js"],
-          });
-          const retryResponse = await chrome.tabs.sendMessage(tab.id, {
-            type: "EXTRACT_DOM",
-          });
-          domContent = retryResponse?.domContent ?? "";
+          try {
+            await chrome.scripting.executeScript({
+              target: { tabId: tab.id },
+              files: ["content.js"],
+            });
+            const retryResponse = await chrome.tabs.sendMessage(tab.id, {
+              type: "EXTRACT_DOM",
+            });
+            domContent = retryResponse?.domContent ?? "";
+          } catch {
+            // Injection failed (e.g., restricted page) — proceed with empty domContent
+            domContent = "";
+          }
         }
       } catch {
         // If content script fails, proceed with empty domContent

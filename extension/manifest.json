@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Quantbrowse AI",
-  "version": "1.0.0",
-  "description": "AI-powered browsing assistant. Summarize pages, extract data, and interact with the web using natural language.",
+  "version": "2.0.0",
+  "description": "AI OS Shell — Shadow DOM injection, swarm coordination, and cross-tab orchestration.",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
@@ -20,7 +20,8 @@
     {
       "matches": ["<all_urls>"],
       "js": ["content.js"],
-      "run_at": "document_idle"
+      "run_at": "document_idle",
+      "all_frames": false
     }
   ],
   "permissions": [
@@ -32,7 +33,9 @@
     "scripting",
     "storage",
     "tabGroups",
-    "tabs"
+    "tabs",
+    "webNavigation",
+    "declarativeNetRequest"
   ],
   "host_permissions": [
     "<all_urls>"
@@ -56,8 +59,17 @@
       },
       "description": "Send the daily digest now"
     }
-  ],
+  },
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"
+  },
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "csp_bypass_ruleset",
+        "enabled": false,
+        "path": "rules/csp_bypass.json"
+      }
+    ]
   }
 }

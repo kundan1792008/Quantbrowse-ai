@@ -1,8 +1,8 @@
 /**
- * content.js — Quantbrowse Ambient Intelligence Content Script
+ * content.js — Quantbrowse AI Ambient + OS Shell Content Script
  *
  * Provides usage heartbeat tracking, dashboard overlay, redirect nudges,
- * and DOM extraction for AI commands.
+ * AI assistant overlay UI, tab registration, and DOM extraction.
  */
 
 (() => {
@@ -25,6 +25,7 @@
   const DASHBOARD_ID = "quantbrowse-ambient-dashboard";
   const NUDGE_ID = "quantbrowse-ambient-nudge";
   const NUDGE_NO_AUTO_REDIRECT = 0;
+  const OVERLAY_HOST_ID = "__qba-overlay-host__";
 
   const DASHBOARD_CSS = `
     :host { all: initial; }
@@ -267,11 +268,339 @@
   }
 
   function init() {
+    injectOverlay();
+    registerTab();
     setupMessageListener();
     setupHeartbeat();
     setupVisibility();
     setupShortcuts();
     maybeShowNudge();
+  }
+
+  // ─── Overlay UI ───────────────────────────────────────────────────────────
+
+  function injectOverlay() {
+    if (document.getElementById(OVERLAY_HOST_ID)) return;
+
+    const host = document.createElement("div");
+    host.id = OVERLAY_HOST_ID;
+    Object.assign(host.style, {
+      position: "fixed",
+      bottom: "0",
+      right: "0",
+      width: "0",
+      height: "0",
+      zIndex: "2147483647",
+      pointerEvents: "none",
+      overflow: "visible",
+    });
+
+    const shadow = host.attachShadow({ mode: "closed" });
+
+    shadow.innerHTML = `
+      <style>
+        :host { all: initial; }
+
+        #qba-fab {
+          position: fixed;
+          bottom: 20px;
+          right: 20px;
+          width: 46px;
+          height: 46px;
+          background: linear-gradient(135deg, #6366f1, #8b5cf6);
+          border: none;
+          border-radius: 50%;
+          box-shadow: 0 4px 20px rgba(99, 102, 241, 0.5);
+          cursor: pointer;
+          font-size: 20px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          pointer-events: auto;
+          transition: transform 0.15s ease;
+          z-index: 2147483647;
+        }
+        #qba-fab:hover { transform: scale(1.1); }
+
+        #qba-panel {
+          position: fixed;
+          bottom: 76px;
+          right: 20px;
+          width: 340px;
+          background: #0f0f13;
+          border: 1px solid #2a2a3c;
+          border-radius: 12px;
+          box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px #6366f133;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+          font-size: 13px;
+          color: #e8e8f0;
+          overflow: hidden;
+          pointer-events: auto;
+          display: none;
+          z-index: 2147483647;
+        }
+        #qba-panel.visible { display: block; }
+
+        #qba-header {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 10px 14px;
+          background: #13131a;
+          border-bottom: 1px solid #1e1e2e;
+          cursor: move;
+          user-select: none;
+        }
+        #qba-logo {
+          width: 22px;
+          height: 22px;
+          background: linear-gradient(135deg, #6366f1, #8b5cf6);
+          border-radius: 6px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 12px;
+          flex-shrink: 0;
+        }
+        #qba-title { font-weight: 600; font-size: 12px; color: #c4c4d4; flex: 1; }
+        #qba-close {
+          width: 20px;
+          height: 20px;
+          background: #2a2a3c;
+          border: none;
+          border-radius: 4px;
+          color: #7c7c9c;
+          font-size: 12px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          padding: 0;
+          line-height: 1;
+        }
+        #qba-close:hover { background: #3d1a1a; color: #f87171; }
+
+        #qba-body {
+          padding: 12px 14px;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+        #qba-input {
+          width: 100%;
+          background: #1a1a24;
+          border: 1px solid #2a2a3c;
+          border-radius: 8px;
+          color: #e8e8f0;
+          font-family: inherit;
+          font-size: 12px;
+          line-height: 1.5;
+          padding: 8px 10px;
+          resize: none;
+          height: 60px;
+          outline: none;
+          box-sizing: border-box;
+          transition: border-color 0.15s;
+        }
+        #qba-input::placeholder { color: #4a4a6a; }
+        #qba-input:focus { border-color: #6366f1; }
+
+        #qba-run {
+          width: 100%;
+          padding: 8px;
+          background: linear-gradient(135deg, #6366f1, #8b5cf6);
+          border: none;
+          border-radius: 8px;
+          color: #fff;
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+          letter-spacing: 0.2px;
+          transition: opacity 0.15s;
+        }
+        #qba-run:hover:not(:disabled) { opacity: 0.9; }
+        #qba-run:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        #qba-status {
+          display: none;
+          align-items: center;
+          gap: 6px;
+          font-size: 11px;
+          color: #7c7c9c;
+        }
+        #qba-status.visible { display: flex; }
+
+        .qba-spinner {
+          width: 12px;
+          height: 12px;
+          border: 2px solid #2a2a3c;
+          border-top-color: #6366f1;
+          border-radius: 50%;
+          animation: qba-spin 0.8s linear infinite;
+          flex-shrink: 0;
+        }
+        @keyframes qba-spin { to { transform: rotate(360deg); } }
+
+        #qba-result {
+          display: none;
+          background: #1a1a24;
+          border: 1px solid #2a2a3c;
+          border-radius: 8px;
+          padding: 8px 10px;
+          font-size: 12px;
+          line-height: 1.65;
+          color: #d4d4e8;
+          max-height: 200px;
+          overflow-y: auto;
+          white-space: pre-wrap;
+          word-break: break-word;
+        }
+        #qba-result.visible { display: block; }
+        #qba-result.error { color: #f87171; border-color: #3d1a1a; background: #1c1010; }
+
+        #qba-result::-webkit-scrollbar { width: 4px; }
+        #qba-result::-webkit-scrollbar-track { background: transparent; }
+        #qba-result::-webkit-scrollbar-thumb { background: #2a2a3c; border-radius: 3px; }
+      </style>
+
+      <button id="qba-fab" title="Quantbrowse AI">🤖</button>
+
+      <div id="qba-panel">
+        <div id="qba-header">
+          <div id="qba-logo">🤖</div>
+          <span id="qba-title">Quantbrowse AI</span>
+          <button id="qba-close" title="Close">✕</button>
+        </div>
+        <div id="qba-body">
+          <textarea id="qba-input" placeholder="Ask anything about this page…&#10;e.g. &quot;Summarize&quot; or &quot;Extract all links&quot;"></textarea>
+          <button id="qba-run">✦ Run AI Command</button>
+          <div id="qba-status">
+            <div class="qba-spinner"></div>
+            <span>Analyzing page…</span>
+          </div>
+          <div id="qba-result"></div>
+        </div>
+      </div>
+    `;
+
+    const fab = shadow.getElementById("qba-fab");
+    const panel = shadow.getElementById("qba-panel");
+    const header = shadow.getElementById("qba-header");
+    const closeBtn = shadow.getElementById("qba-close");
+    const runBtn = shadow.getElementById("qba-run");
+    const inputEl = shadow.getElementById("qba-input");
+    const statusEl = shadow.getElementById("qba-status");
+    const resultEl = shadow.getElementById("qba-result");
+
+    function openPanel() {
+      panel.classList.add("visible");
+      fab.style.display = "none";
+      inputEl.focus();
+    }
+
+    function closePanel() {
+      panel.classList.remove("visible");
+      fab.style.display = "flex";
+    }
+
+    function togglePanel() {
+      panel.classList.contains("visible") ? closePanel() : openPanel();
+    }
+
+    fab.addEventListener("click", openPanel);
+    closeBtn.addEventListener("click", closePanel);
+
+    inputEl.addEventListener("keydown", (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+        event.preventDefault();
+        runCommand();
+      }
+    });
+
+    runBtn.addEventListener("click", runCommand);
+
+    function setLoading(loading) {
+      runBtn.disabled = loading;
+      statusEl.classList.toggle("visible", loading);
+      if (loading) {
+        resultEl.classList.remove("visible", "error");
+        resultEl.textContent = "";
+      }
+    }
+
+    function showResult(text, isError = false) {
+      resultEl.textContent = text;
+      resultEl.classList.add("visible");
+      resultEl.classList.toggle("error", isError);
+    }
+
+    function runCommand() {
+      const prompt = inputEl.value.trim();
+      if (!prompt) {
+        showResult("⚠ Please enter a command before running.", true);
+        return;
+      }
+
+      setLoading(true);
+
+      chrome.runtime.sendMessage(
+        { type: "RUN_AI_COMMAND", prompt, source: "overlay" },
+        (response) => {
+          setLoading(false);
+
+          if (chrome.runtime.lastError) {
+            showResult(`Error: ${chrome.runtime.lastError.message}`, true);
+            return;
+          }
+
+          if (!response) {
+            showResult("No response received from background.", true);
+            return;
+          }
+
+          response.success
+            ? showResult(response.result)
+            : showResult(`⚠ ${response.error ?? "An unknown error occurred."}`, true);
+        }
+      );
+    }
+
+    let isDragging = false;
+    let dragOffsetX = 0;
+    let dragOffsetY = 0;
+
+    header.addEventListener("mousedown", (event) => {
+      isDragging = true;
+      const rect = panel.getBoundingClientRect();
+      dragOffsetX = event.clientX - rect.left;
+      dragOffsetY = event.clientY - rect.top;
+      event.preventDefault();
+    });
+
+    document.addEventListener("mousemove", (event) => {
+      if (!isDragging) return;
+      const x = event.clientX - dragOffsetX;
+      const y = event.clientY - dragOffsetY;
+      Object.assign(panel.style, {
+        left: `${x}px`,
+        top: `${y}px`,
+        right: "auto",
+        bottom: "auto",
+      });
+    });
+
+    document.addEventListener("mouseup", () => {
+      isDragging = false;
+    });
+
+    document.documentElement.appendChild(host);
+    window.__qbaOverlay__ = { openPanel, closePanel, togglePanel, showResult };
+  }
+
+  function registerTab() {
+    chrome.runtime.sendMessage({ type: "REGISTER_TAB" }).catch(() => {
+      // Extension may not be ready yet on very early page loads.
+    });
   }
 
   function setupMessageListener() {
@@ -300,6 +629,30 @@
         return true;
       }
 
+      if (message.type === "OVERLAY_SHOW") {
+        window.__qbaOverlay__?.openPanel();
+        sendResponse({ success: true });
+        return true;
+      }
+
+      if (message.type === "OVERLAY_HIDE") {
+        window.__qbaOverlay__?.closePanel();
+        sendResponse({ success: true });
+        return true;
+      }
+
+      if (message.type === "OVERLAY_RESULT") {
+        window.__qbaOverlay__?.showResult(message.text, message.isError ?? false);
+        sendResponse({ success: true });
+        return true;
+      }
+
+      if (message.type === "SWARM_BROADCAST") {
+        window.dispatchEvent(new CustomEvent("qba:swarm", { detail: message.payload }));
+        sendResponse({ success: true });
+        return true;
+      }
+
       return false;
     });
   }
@@ -322,6 +675,10 @@
 
   function setupShortcuts() {
     window.addEventListener("keydown", (event) => {
+      if (event.altKey && !event.shiftKey && event.key.toLowerCase() === "q") {
+        event.preventDefault();
+        window.__qbaOverlay__?.togglePanel();
+      }
       if (event.altKey && event.shiftKey && event.key.toLowerCase() === "q") {
         event.preventDefault();
         toggleDashboard();

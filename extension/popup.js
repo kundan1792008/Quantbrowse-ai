@@ -8,6 +8,7 @@ const promptInput = document.getElementById("promptInput");
 const runBtn = document.getElementById("runBtn");
 const statusEl = document.getElementById("status");
 const resultEl = document.getElementById("result");
+const swarmStatsEl = document.getElementById("swarm-stats");
 const productivityScoreEl = document.getElementById("productivityScore");
 const focusTotalEl = document.getElementById("focusTotal");
 const topSitesEl = document.getElementById("topSites");
@@ -16,6 +17,8 @@ const openDashboardBtn = document.getElementById("openDashboardBtn");
 const groupTabsBtn = document.getElementById("groupTabsBtn");
 const digestBtn = document.getElementById("digestBtn");
 const surpriseBtn = document.getElementById("surpriseBtn");
+
+refreshSwarmStats();
 
 chrome.storage.local.get("lastPrompt", ({ lastPrompt }) => {
   if (lastPrompt) promptInput.value = lastPrompt;
@@ -41,6 +44,27 @@ window.addEventListener("unload", () => {
     clearInterval(refreshInterval);
   }
 });
+
+function refreshSwarmStats() {
+  if (!swarmStatsEl) return;
+  chrome.runtime.sendMessage({ type: "SWARM_STATS" }, (response) => {
+    if (chrome.runtime.lastError || !response?.success) {
+      swarmStatsEl.innerHTML = "";
+      return;
+    }
+    const { total, pending, running, complete, failed } = response.stats;
+    if (total === 0) {
+      swarmStatsEl.innerHTML = "";
+      return;
+    }
+    swarmStatsEl.innerHTML = `
+      ${running > 0 ? `<span class="stat-pill"><span class="dot dot-running"></span>${running} running</span>` : ""}
+      ${pending > 0 ? `<span class="stat-pill"><span class="dot dot-pending"></span>${pending} pending</span>` : ""}
+      ${complete > 0 ? `<span class="stat-pill"><span class="dot dot-complete"></span>${complete} done</span>` : ""}
+      ${failed > 0 ? `<span class="stat-pill"><span class="dot dot-failed"></span>${failed} failed</span>` : ""}
+    `;
+  });
+}
 
 function setLoading(loading) {
   runBtn.disabled = loading;
@@ -69,6 +93,7 @@ async function handleRun() {
 
   chrome.runtime.sendMessage({ type: "RUN_AI_COMMAND", prompt }, (response) => {
     setLoading(false);
+    refreshSwarmStats();
 
     if (chrome.runtime.lastError) {
       showResult(

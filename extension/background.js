@@ -1,8 +1,9 @@
 /**
- * background.js — Quantbrowse Ambient Intelligence Service Worker
+ * background.js — Quantbrowse Ambient Intelligence & OS Shell Service Worker
  *
  * Handles usage tracking, smart tab grouping, daily digests, surprise AI
- * bookmarks, productivity scoring, and ecosystem redirect nudges.
+ * bookmarks, productivity scoring, and ecosystem redirect nudges. Also manages
+ * the SwarmCoordinator, cross-tab relay, and AI command orchestration.
  */
 
 const DEFAULT_API_BASE_URL = "http://localhost:3000";
@@ -10,6 +11,145 @@ const STORAGE_VERSION = 1;
 const NOTIFICATION_ICON =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAZUlEQVR42u3QQREAAAQAMF3d6S8BOZw9VmCR1fNZCBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAfctS5+Shk5p5qQAAAAASUVORK5CYII=";
 const MAX_SURPRISE_CHANCE = 0.85;
+
+// ─── SwarmCoordinator ──────────────────────────────────────────────────────
+
+/**
+ * In-memory coordinator for all agent tasks spawned across tabs.
+ *
+ * Design goals:
+ *  - O(1) enqueue / update / get via Map
+ *  - Bounded memory: evicts oldest completed task when MAX_TASKS is reached
+ *  - Immutable task IDs — callers can always query a past task by id
+ *
+ * @typedef {{ id: string, tabId: number, prompt: string,
+ *             status: "pending"|"running"|"complete"|"failed",
+ *             result: string|null, error: string|null,
+ *             createdAt: number, updatedAt: number }} AgentTask
+ */
+class SwarmCoordinator {
+  static MAX_TASKS = 1000;
+
+  /** @type {Map<string, AgentTask>} */
+  #tasks = new Map();
+
+  /** Auto-incrementing counter for unique task IDs. */
+  #counter = 0;
+
+  /**
+   * Adds a new task to the swarm queue.
+   * Evicts the oldest completed/failed task if the queue is full.
+   *
+   * @param {number} tabId   Originating Chrome tab ID
+   * @param {string} prompt  User's natural-language command
+   * @returns {AgentTask}
+   */
+  enqueue(tabId, prompt) {
+    if (this.#tasks.size >= SwarmCoordinator.MAX_TASKS) {
+      this.#evictOldestCompleted();
+    }
+
+    const id = `task-${++this.#counter}`;
+    const now = Date.now();
+
+    /** @type {AgentTask} */
+    const task = {
+      id,
+      tabId,
+      prompt,
+      status: "pending",
+      result: null,
+      error: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    this.#tasks.set(id, task);
+    return task;
+  }
+
+  /**
+   * Updates the status (and optional fields) of an existing task.
+   *
+   * @param {string} id
+   * @param {"running"|"complete"|"failed"} status
+   * @param {Partial<AgentTask>} [patch]
+   */
+  update(id, status, patch = {}) {
+    const task = this.#tasks.get(id);
+    if (!task) return;
+    Object.assign(task, { status, updatedAt: Date.now(), ...patch });
+  }
+
+  /**
+   * Retrieves a task by its ID.
+   * @param {string} id
+   * @returns {AgentTask|undefined}
+   */
+  get(id) {
+    return this.#tasks.get(id);
+  }
+
+  /**
+   * Returns a summary of the swarm's current state.
+   * @returns {{ total: number, pending: number, running: number, complete: number, failed: number }}
+   */
+  stats() {
+    let pending = 0;
+    let running = 0;
+    let complete = 0;
+    let failed = 0;
+    for (const task of this.#tasks.values()) {
+      if (task.status === "pending") pending += 1;
+      else if (task.status === "running") running += 1;
+      else if (task.status === "complete") complete += 1;
+      else failed += 1;
+    }
+    return { total: this.#tasks.size, pending, running, complete, failed };
+  }
+
+  /** Removes the single oldest completed/failed task to free one slot. */
+  #evictOldestCompleted() {
+    let oldest = null;
+    for (const task of this.#tasks.values()) {
+      if (task.status !== "complete" && task.status !== "failed") continue;
+      if (!oldest || task.createdAt < oldest.createdAt) oldest = task;
+    }
+    if (oldest) this.#tasks.delete(oldest.id);
+  }
+}
+
+const swarm = new SwarmCoordinator();
+
+// ─── Cross-Tab Message Bus ─────────────────────────────────────────────────
+
+/**
+ * Registry of tab IDs that have an active content script.
+ * Tabs are added on REGISTER_TAB and removed when Chrome fires tabs.onRemoved.
+ * @type {Set<number>}
+ */
+const activeTabs = new Set();
+
+/**
+ * Sends a message to every registered tab except the optional sender.
+ * Stale tab IDs are silently removed from activeTabs.
+ *
+ * @param {object} payload
+ * @param {number|null} [excludeTabId]
+ * @returns {Promise<PromiseSettledResult[]>}
+ */
+async function broadcastToTabs(payload, excludeTabId = null) {
+  const sends = [];
+  for (const tabId of activeTabs) {
+    if (tabId === excludeTabId) continue;
+    sends.push(
+      chrome.tabs.sendMessage(tabId, payload).catch(() => {
+        activeTabs.delete(tabId);
+      })
+    );
+  }
+  return Promise.allSettled(sends);
+}
 
 const STORAGE_KEYS = {
   usage: "ambientUsage",
@@ -551,7 +691,13 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {
+  activeTabs.delete(tabId);
   withReady(() => handleTabRemoved(tabId));
+});
+
+chrome.webNavigation.onCompleted.addListener(({ tabId, frameId }) => {
+  if (frameId !== 0) return;
+  activeTabs.add(tabId);
 });
 
 chrome.windows.onFocusChanged.addListener((windowId) => {
@@ -825,8 +971,29 @@ async function handleCommand(command) {
 
 async function handleMessage(message, sender) {
   switch (message.type) {
+    case "REGISTER_TAB": {
+      const senderTabId = sender?.tab?.id ?? null;
+      if (senderTabId !== null) activeTabs.add(senderTabId);
+      return { success: true, tabId: senderTabId };
+    }
     case "RUN_AI_COMMAND":
       return handleAiCommand(message);
+    case "RELAY_TO_TABS": {
+      const senderTabId = sender?.tab?.id ?? null;
+      await broadcastToTabs(
+        { type: "SWARM_BROADCAST", payload: message.payload },
+        senderTabId
+      );
+      return { success: true };
+    }
+    case "SWARM_STATS":
+      return { success: true, stats: swarm.stats() };
+    case "TASK_STATUS": {
+      const task = swarm.get(message.taskId);
+      return task
+        ? { success: true, task }
+        : { success: false, error: "Task not found." };
+    }
     case "PAGE_HEARTBEAT":
       return handlePageHeartbeat(message, sender);
     case "REQUEST_DASHBOARD":
@@ -869,37 +1036,43 @@ async function handleAiCommand(message) {
     return { success: false, error: "No active tab found." };
   }
 
-  let domContent = "";
+  activeTabs.add(tab.id);
+  const task = swarm.enqueue(tab.id, prompt.trim());
+  swarm.update(task.id, "running");
+
   try {
-    const domResponse = await sendMessageToTab(tab.id, { type: "EXTRACT_DOM" });
-    if (domResponse?.success) {
-      domContent = domResponse.domContent ?? "";
+    const domContent = await getDomContent(tab.id);
+    const apiBaseUrl = await getApiBaseUrl();
+    const response = await fetch(`${apiBaseUrl}/api/browse`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: prompt.trim(), domContent }),
+    });
+
+    if (!response.ok) {
+      const errBody = await response.json().catch(() => ({}));
+      const error = errBody?.error ?? `Server error: ${response.status}`;
+      swarm.update(task.id, "failed", { error });
+      return { success: false, error };
     }
-  } catch {
-    domContent = "";
+
+    const data = await response.json();
+    swarm.update(task.id, "complete", { result: data.result });
+
+    await broadcastToTabs(
+      {
+        type: "SWARM_BROADCAST",
+        payload: { event: "task_complete", taskId: task.id },
+      },
+      tab.id
+    );
+
+    return { success: true, result: data.result, taskId: task.id };
+  } catch (err) {
+    const error = String(err);
+    swarm.update(task.id, "failed", { error });
+    return { success: false, error };
   }
-
-  if (!domContent) {
-    domContent = await injectAndExtractDom(tab.id);
-  }
-
-  const apiBaseUrl = await getApiBaseUrl();
-  const response = await fetch(`${apiBaseUrl}/api/browse`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt, domContent }),
-  });
-
-  if (!response.ok) {
-    const errBody = await response.json().catch(() => ({}));
-    return {
-      success: false,
-      error: errBody?.error ?? `Server error: ${response.status}`,
-    };
-  }
-
-  const data = await response.json();
-  return { success: true, result: data.result };
 }
 
 async function getApiBaseUrl() {
@@ -908,6 +1081,26 @@ async function getApiBaseUrl() {
     return stored.trim();
   }
   return DEFAULT_API_BASE_URL;
+}
+
+/**
+ * Attempts to retrieve the page's visible text from the content script.
+ * If the content script is not yet injected, injects it and retries once.
+ *
+ * @param {number} tabId
+ * @returns {Promise<string>}
+ */
+async function getDomContent(tabId) {
+  try {
+    const domResponse = await sendMessageToTab(tabId, { type: "EXTRACT_DOM" });
+    if (domResponse?.success) {
+      return domResponse.domContent ?? "";
+    }
+  } catch {
+    // Content script not running — fall through to injection
+  }
+
+  return injectAndExtractDom(tabId);
 }
 
 async function injectAndExtractDom(tabId) {

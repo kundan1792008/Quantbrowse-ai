@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Quantbrowse AI",
   "version": "2.1.0",
-  "description": "AI OS Shell — Universal Web Clipper, Shadow DOM injection, swarm coordination, and cross-tab orchestration.",
+  "description": "AI OS Shell — Universal Web Clipper, ambient intelligence, smart tab grouping, daily digest, AI bookmarks, productivity score, ecosystem redirect, Shadow DOM injection, swarm coordination, and cross-tab orchestration.",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
@@ -22,6 +22,23 @@
       "js": ["content.js", "content/clipper.js"],
       "run_at": "document_idle",
       "all_frames": false
+    },
+    {
+      "matches": [
+        "*://*.youtube.com/*",
+        "*://*.twitter.com/*",
+        "*://*.x.com/*",
+        "*://*.reddit.com/*",
+        "*://*.google.com/search*",
+        "*://*.bing.com/*",
+        "*://*.netflix.com/*",
+        "*://*.spotify.com/*",
+        "*://*.medium.com/*",
+        "*://news.google.com/*",
+        "*://*.amazon.com/*"
+      ],
+      "js": ["redirect-badge.js"],
+      "run_at": "document_idle"
     }
   ],
   "commands": {
@@ -31,27 +48,7 @@
         "mac": "Command+Shift+Space"
       },
       "description": "Open Tab Quick-Switch"
-    }
-  },
-  "permissions": [
-    "activeTab",
-    "alarms",
-    "bookmarks",
-    "idle",
-    "notifications",
-    "scripting",
-    "storage",
-    "tabGroups",
-    "tabs",
-    "webNavigation",
-    "declarativeNetRequest",
-    "contextMenus",
-    "clipboardWrite"
-  ],
-  "host_permissions": [
-    "<all_urls>"
-  ],
-  "commands": {
+    },
     "toggle-dashboard": {
       "suggested_key": {
         "default": "Alt+Shift+Q"
@@ -71,6 +68,32 @@
       "description": "Send the daily digest now"
     }
   },
+  "permissions": [
+    "activeTab",
+    "alarms",
+    "bookmarks",
+    "history",
+    "idle",
+    "notifications",
+    "scripting",
+    "storage",
+    "tabGroups",
+    "tabs",
+    "webNavigation",
+    "windows",
+    "declarativeNetRequest",
+    "contextMenus",
+    "clipboardWrite"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["dashboard.html", "icons/*.png"],
+      "matches": ["<all_urls>"]
+    }
+  ],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"
   },

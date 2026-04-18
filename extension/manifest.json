@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Quantbrowse AI",
-  "version": "2.0.0",
-  "description": "AI OS Shell — Shadow DOM injection, swarm coordination, and cross-tab orchestration.",
+  "version": "2.1.0",
+  "description": "AI OS Shell — Universal Web Clipper, ambient intelligence, smart tab grouping, daily digest, AI bookmarks, productivity score, ecosystem redirect, Shadow DOM injection, swarm coordination, and cross-tab orchestration.",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
@@ -20,25 +20,82 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js"],
+      "js": ["content.js", "content/clipper.js"],
       "run_at": "document_idle",
       "all_frames": false
+    },
+    {
+      "matches": [
+        "*://*.youtube.com/*",
+        "*://*.twitter.com/*",
+        "*://*.x.com/*",
+        "*://*.reddit.com/*",
+        "*://*.google.com/search*",
+        "*://*.bing.com/*",
+        "*://*.netflix.com/*",
+        "*://*.spotify.com/*",
+        "*://*.medium.com/*",
+        "*://news.google.com/*",
+        "*://*.amazon.com/*"
+      ],
+      "js": ["redirect-badge.js"],
+      "run_at": "document_idle"
     }
   ],
+  "commands": {
+    "quick_switch": {
+      "suggested_key": {
+        "default": "Ctrl+Space",
+        "mac": "Command+Shift+Space"
+      },
+      "description": "Open Tab Quick-Switch"
+    },
+    "toggle-dashboard": {
+      "suggested_key": {
+        "default": "Alt+Shift+Q"
+      },
+      "description": "Toggle the Quantbrowse ambient dashboard"
+    },
+    "group-tabs": {
+      "suggested_key": {
+        "default": "Alt+Shift+G"
+      },
+      "description": "Run smart AI tab grouping"
+    },
+    "trigger-digest": {
+      "suggested_key": {
+        "default": "Alt+Shift+D"
+      },
+      "description": "Send the daily digest now"
+    }
+  },
   "permissions": [
     "activeTab",
     "alarms",
+    "bookmarks",
     "contextMenus",
     "downloads",
+    "history",
+    "idle",
     "notifications",
     "scripting",
     "storage",
+    "tabGroups",
     "tabs",
     "webNavigation",
-    "declarativeNetRequest"
+    "windows",
+    "declarativeNetRequest",
+    "contextMenus",
+    "clipboardWrite"
   ],
   "host_permissions": [
     "<all_urls>"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["dashboard.html", "icons/*.png"],
+      "matches": ["<all_urls>"]
+    }
   ],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"

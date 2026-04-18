@@ -11,6 +11,11 @@
       ]
     },
     "condition": {
+      "requestDomains": [
+        "quantbrowse.ai",
+        "quanttube.ai",
+        "quantchat.ai"
+      ],
       "resourceTypes": ["main_frame", "sub_frame"]
     }
   }

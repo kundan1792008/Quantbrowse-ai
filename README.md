@@ -96,3 +96,4 @@ The extension's `background.js` defaults to `http://localhost:3000`. For product
 - The `OPENAI_API_KEY` is stored exclusively in `.env.local` on the server. It is **never** included in the extension code.
 - All AI processing happens server-side via the `/api/browse` endpoint.
 - DOM content is truncated to 12 000 characters before being sent to the API to limit token usage and prevent unintentional data exfiltration.
+- The optional declarativeNetRequest ruleset at `extension/rules/csp_bypass.json` is disabled by default and scoped to Quantbrowse domains; enable it only for internal debugging when you need to relax CSP headers.

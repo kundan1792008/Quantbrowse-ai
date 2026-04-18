@@ -17,6 +17,12 @@ out/
 # Desktop app build output
 /dist
 
+# Extension build output (Vite-emitted bundles next to TS sources)
+extension/background/background-bundle.js
+extension/content/content-bundle.js
+extension/popup/dashboard.js
+extension/shared/
+
 # OS files
 .DS_Store
 

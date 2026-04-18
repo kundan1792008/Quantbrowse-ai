@@ -237,7 +237,11 @@ class PageAnalyzer {
     anchors.forEach((a) => {
       if (out.length >= MAX_LINKS) return;
       const href = (a.getAttribute('href') ?? '').trim();
-      if (!href || href.startsWith('javascript:') || href.startsWith('#')) return;
+      if (!href || href.startsWith('#')) return;
+      // Skip dangerous / non-navigable URL schemes (case-insensitive, tolerant of
+      // leading whitespace inside the value, which most browsers strip when
+      // resolving). Matches javascript:, data:, vbscript:, and file:.
+      if (/^[\s\u0000-\u0020]*(?:javascript|data|vbscript|file):/i.test(href)) return;
       const absolute = this.resolveUrl(href, baseUrl);
       if (!absolute || seen.has(absolute)) return;
       seen.add(absolute);

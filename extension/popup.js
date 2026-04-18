@@ -1,8 +1,7 @@
 /**
  * popup.js — Quantbrowse AI Popup Script
  *
- * Handles user input, sends the AI command to background.js,
- * renders the AI's response in the popup, and manages the
+ * Handles AI commands, ambient dashboard controls, and manages the
  * Collections and Clip tabs.
  */
 
@@ -11,17 +10,26 @@ const runBtn = document.getElementById("runBtn");
 const statusEl = document.getElementById("status");
 const resultEl = document.getElementById("result");
 const swarmStatsEl = document.getElementById("swarm-stats");
+const productivityScoreEl = document.getElementById("productivityScore");
+const focusTotalEl = document.getElementById("focusTotal");
+const topSitesEl = document.getElementById("topSites");
+const digestPreviewEl = document.getElementById("digestPreview");
+const openDashboardBtn = document.getElementById("openDashboardBtn");
+const groupTabsBtn = document.getElementById("groupTabsBtn");
+const digestBtn = document.getElementById("digestBtn");
+const surpriseBtn = document.getElementById("surpriseBtn");
 
 // ── Tab management ────────────────────────────────────────────────────────────
 
 const tabBtns = document.querySelectorAll(".tab-btn");
 const tabPanels = {
+  ambient: document.getElementById("tab-ambient"),
   ai: document.getElementById("tab-ai"),
   collections: document.getElementById("tab-collections"),
   clip: document.getElementById("tab-clip"),
 };
 
-let activeTab = "ai";
+let activeTab = "ambient";
 
 tabBtns.forEach((btn) => {
   btn.addEventListener("click", () => {
@@ -40,9 +48,40 @@ tabBtns.forEach((btn) => {
   });
 });
 
+// ── Ambient dashboard ────────────────────────────────────────────────────────
+
+chrome.storage.local.get("lastPrompt", ({ lastPrompt }) => {
+  if (lastPrompt && promptInput) promptInput.value = lastPrompt;
+  refreshSwarmStats();
+});
+
+if (promptInput) {
+  promptInput.addEventListener("keydown", (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+      event.preventDefault();
+      handleRun();
+    }
+  });
+}
+
+if (runBtn) runBtn.addEventListener("click", handleRun);
+if (openDashboardBtn) openDashboardBtn.addEventListener("click", () => sendToActiveTab({ type: "SHOW_DASHBOARD" }));
+if (groupTabsBtn) groupTabsBtn.addEventListener("click", () => chrome.runtime.sendMessage({ type: "TRIGGER_GROUP_TABS" }));
+if (digestBtn) digestBtn.addEventListener("click", () => chrome.runtime.sendMessage({ type: "TRIGGER_DIGEST" }));
+if (surpriseBtn) surpriseBtn.addEventListener("click", () => chrome.runtime.sendMessage({ type: "SURPRISE_BOOKMARK" }));
+
+let refreshInterval = null;
+startDashboardRefresh();
+window.addEventListener("unload", () => {
+  if (refreshInterval) {
+    clearInterval(refreshInterval);
+  }
+});
+
 // ── Swarm stats ──────────────────────────────────────────────────────────────
 
 function refreshSwarmStats() {
+  if (!swarmStatsEl) return;
   chrome.runtime.sendMessage({ type: "SWARM_STATS" }, (response) => {
     if (chrome.runtime.lastError || !response?.success) {
       swarmStatsEl.innerHTML = "";
@@ -61,27 +100,6 @@ function refreshSwarmStats() {
     `;
   });
 }
-
-refreshSwarmStats();
-
-// ── Restore last prompt ───────────────────────────────────────────────────────
-
-chrome.storage.local.get("lastPrompt", ({ lastPrompt }) => {
-  if (lastPrompt && promptInput) promptInput.value = lastPrompt;
-});
-
-// ── AI tab ────────────────────────────────────────────────────────────────────
-
-if (promptInput) {
-  promptInput.addEventListener("keydown", (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-      e.preventDefault();
-      handleRun();
-    }
-  });
-}
-
-if (runBtn) runBtn.addEventListener("click", handleRun);
 
 function setLoading(loading) {
   if (runBtn) runBtn.disabled = loading;
@@ -131,6 +149,87 @@ async function handleRun() {
     } else {
       showResult(`⚠ ${response.error ?? "An unknown error occurred."}`, true);
     }
+  });
+}
+
+async function refreshDashboard() {
+  const response = await chrome.runtime.sendMessage({ type: "REQUEST_DASHBOARD" });
+  if (!response?.success) return;
+  const dashboard = response.dashboard;
+  if (!dashboard) return;
+
+  if (productivityScoreEl) productivityScoreEl.textContent = `${dashboard.productivityScore ?? 0}`;
+  if (focusTotalEl) focusTotalEl.textContent = formatDuration(dashboard.todayTotal ?? 0);
+
+  const topSites = dashboard.todayDomains ?? [];
+  if (topSitesEl) {
+    topSitesEl.innerHTML = "";
+    if (!topSites.length) {
+      const empty = document.createElement("div");
+      empty.className = "list-item";
+      empty.textContent = "No sites tracked yet.";
+      topSitesEl.appendChild(empty);
+    } else {
+      topSites.forEach((site) => {
+        const item = document.createElement("div");
+        item.className = "list-item";
+        const title = document.createElement("span");
+        title.textContent = site.domain;
+        const value = document.createElement("strong");
+        value.textContent = formatDuration(site.ms);
+        const badge = document.createElement("span");
+        badge.className = "badge";
+        badge.textContent = site.category;
+        item.appendChild(title);
+        item.appendChild(value);
+        item.appendChild(badge);
+        topSitesEl.appendChild(item);
+      });
+    }
+  }
+
+  if (digestPreviewEl) {
+    if (dashboard.digestPreview?.headline) {
+      digestPreviewEl.textContent = dashboard.digestPreview.headline;
+    } else {
+      digestPreviewEl.textContent = "";
+    }
+  }
+}
+
+function startDashboardRefresh() {
+  refreshDashboard();
+  if (refreshInterval) {
+    clearInterval(refreshInterval);
+  }
+  refreshInterval = setInterval(refreshDashboard, 60000);
+}
+
+function formatDuration(ms) {
+  const totalSeconds = Math.round(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  if (hours) {
+    return `${hours}h ${minutes}m`;
+  }
+  return `${Math.max(minutes, 1)}m`;
+}
+
+function sendToActiveTab(message) {
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    const tab = tabs?.[0];
+    if (!tab?.id) {
+      showResult("⚠ No active tab available for this action.", true);
+      return;
+    }
+    chrome.tabs.sendMessage(tab.id, message, () => {
+      if (chrome.runtime.lastError) {
+        showResult(
+          `⚠ Unable to reach the page: ${chrome.runtime.lastError.message}`,
+          true
+        );
+      }
+    });
   });
 }
 

@@ -35,19 +35,42 @@
   },
   "permissions": [
     "activeTab",
+    "alarms",
+    "bookmarks",
+    "idle",
+    "notifications",
     "scripting",
     "storage",
-    "tabs",
     "tabGroups",
+    "tabs",
     "webNavigation",
     "declarativeNetRequest",
     "contextMenus",
-    "clipboardWrite",
-    "alarms"
+    "clipboardWrite"
   ],
   "host_permissions": [
     "<all_urls>"
   ],
+  "commands": {
+    "toggle-dashboard": {
+      "suggested_key": {
+        "default": "Alt+Shift+Q"
+      },
+      "description": "Toggle the Quantbrowse ambient dashboard"
+    },
+    "group-tabs": {
+      "suggested_key": {
+        "default": "Alt+Shift+G"
+      },
+      "description": "Run smart AI tab grouping"
+    },
+    "trigger-digest": {
+      "suggested_key": {
+        "default": "Alt+Shift+D"
+      },
+      "description": "Send the daily digest now"
+    }
+  },
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"
   },

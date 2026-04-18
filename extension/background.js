@@ -1017,6 +1017,110 @@ async function handleMessage(message, sender) {
       return { success: true };
     case "REQUEST_USAGE_EXPORT":
       return { success: true, usage: state.usage };
+    case "CAPTURE_SCREENSHOT": {
+      try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tab?.windowId) {
+          return { success: false, error: "No active window found." };
+        }
+        const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" });
+
+        if (message.region && tab?.id) {
+          const { x, y, width, height } = message.region;
+          const results = await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: (src, cx, cy, cw, ch) => {
+              return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => {
+                  const canvas = document.createElement("canvas");
+                  const dpr = window.devicePixelRatio || 1;
+                  canvas.width = Math.round(cw * dpr);
+                  canvas.height = Math.round(ch * dpr);
+                  const ctx = canvas.getContext("2d");
+                  if (ctx) {
+                    ctx.drawImage(
+                      img,
+                      cx * dpr, cy * dpr, cw * dpr, ch * dpr,
+                      0, 0, canvas.width, canvas.height
+                    );
+                  }
+                  resolve(canvas.toDataURL("image/png"));
+                };
+                img.src = src;
+              });
+            },
+            args: [dataUrl, x, y, width, height],
+          });
+          const croppedUrl = results?.[0]?.result;
+          return { success: true, dataUrl: croppedUrl || dataUrl };
+        }
+        return { success: true, dataUrl };
+      } catch (err) {
+        return { success: false, error: String(err) };
+      }
+    }
+    case "SAVE_CLIP": {
+      try {
+        const clip = message.clip;
+        if (!clip) {
+          return { success: false, error: "No clip payload provided." };
+        }
+        const apiBaseUrl = await getApiBaseUrl();
+        const tags = await autoTagClip(clip, apiBaseUrl);
+        const savedItem = await persistClip(clip, tags);
+        const result = await trySaveToApi(savedItem, apiBaseUrl);
+        return {
+          success: true,
+          item: result.item,
+          app: result.item.app,
+          isDuplicate: result.isDuplicate,
+        };
+      } catch (err) {
+        return { success: false, error: String(err) };
+      }
+    }
+    case "SYNC_QUEUE": {
+      try {
+        const apiBaseUrl = await getApiBaseUrl();
+        const result = await syncOfflineQueue(apiBaseUrl);
+        return { success: true, ...result };
+      } catch (err) {
+        return { success: false, error: String(err) };
+      }
+    }
+    case "GET_SAVED_ITEMS": {
+      try {
+        const items = await getSavedItems();
+        return { success: true, items };
+      } catch (err) {
+        return { success: false, error: String(err) };
+      }
+    }
+    case "DELETE_SAVED_ITEM": {
+      try {
+        await deleteSavedItem(message.itemId);
+        return { success: true };
+      } catch (err) {
+        return { success: false, error: String(err) };
+      }
+    }
+    case "GET_COLLECTIONS": {
+      try {
+        const collections = await getCollections();
+        return { success: true, collections };
+      } catch (err) {
+        return { success: false, error: String(err) };
+      }
+    }
+    case "SAVE_COLLECTIONS": {
+      try {
+        await chrome.storage.local.set({ qba_collections: message.collections });
+        return { success: true };
+      } catch (err) {
+        return { success: false, error: String(err) };
+      }
+    }
     default:
       return { success: false, error: "Unknown message type." };
   }
@@ -1767,3 +1871,471 @@ function toTitleCase(text) {
 function randomChoice(list) {
   return list[Math.floor(Math.random() * list.length)];
 }
+// ─── Context Menu Setup ────────────────────────────────────────────────────
+
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({
+      id: "qba-save-to-quant",
+      title: "Save to Quant \u2726",
+      contexts: ["all"],
+    });
+
+    chrome.contextMenus.create({
+      id: "qba-save-link",
+      title: "Save Link to Quant",
+      contexts: ["link"],
+    });
+
+    chrome.contextMenus.create({
+      id: "qba-save-image",
+      title: "Save Image to Quantedits",
+      contexts: ["image"],
+    });
+
+    chrome.contextMenus.create({
+      id: "qba-save-selection",
+      title: "Save Selection to Quant",
+      contexts: ["selection"],
+    });
+
+    chrome.contextMenus.create({
+      id: "qba-screenshot-region",
+      title: "Screenshot Region\u2026",
+      contexts: ["all"],
+    });
+  });
+});
+
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (!tab?.id) return;
+
+  switch (info.menuItemId) {
+    case "qba-save-to-quant":
+      chrome.tabs.sendMessage(
+        tab.id,
+        { type: "CLIP_ELEMENT", targetInfo: null },
+        async (response) => {
+          if (chrome.runtime.lastError || !response?.success) return;
+          const apiBaseUrl = await getApiBaseUrl();
+          const tags = await autoTagClip(response.clip, apiBaseUrl);
+          const item = await persistClip(response.clip, tags);
+          await trySaveToApi(item, apiBaseUrl);
+          chrome.tabs.sendMessage(tab.id, {
+            type: "OVERLAY_RESULT",
+            text: `\u2713 Saved to ${item.app}: ${tags.title}`,
+          }).catch(() => undefined);
+        }
+      );
+      break;
+
+    case "qba-save-link": {
+      const url = info.linkUrl ?? tab.url ?? "";
+      (async () => {
+        const clip = {
+          id: `clip-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+          type: "generic",
+          url,
+          faviconUrl: `${new URL(url).origin}/favicon.ico`,
+          title: info.selectionText || url,
+          description: "",
+          timestamp: Date.now(),
+        };
+        const apiBaseUrl = await getApiBaseUrl();
+        const tags = await autoTagClip(clip, apiBaseUrl);
+        const item = await persistClip(clip, tags);
+        await trySaveToApi(item, apiBaseUrl);
+      })().catch(console.error);
+      break;
+    }
+
+    case "qba-save-image": {
+      const url = info.srcUrl ?? "";
+      (async () => {
+        const clip = {
+          id: `clip-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+          type: "image",
+          url: info.pageUrl ?? tab.url ?? "",
+          faviconUrl: `${new URL(info.pageUrl ?? tab.url ?? "http://example.com").origin}/favicon.ico`,
+          title: `Image from ${tab.title ?? "page"}`,
+          description: info.selectionText || "",
+          timestamp: Date.now(),
+          image: { src: url, alt: "", width: 0, height: 0, caption: "" },
+        };
+        const apiBaseUrl = await getApiBaseUrl();
+        const tags = await autoTagClip(clip, apiBaseUrl);
+        const item = await persistClip(clip, tags);
+        await trySaveToApi(item, apiBaseUrl);
+      })().catch(console.error);
+      break;
+    }
+
+    case "qba-save-selection": {
+      const selectedText = info.selectionText ?? "";
+      (async () => {
+        const clip = {
+          id: `clip-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+          type: "article",
+          url: tab.url ?? "",
+          faviconUrl: `${new URL(tab.url ?? "http://example.com").origin}/favicon.ico`,
+          title: tab.title ?? "Selection",
+          description: selectedText.slice(0, 200),
+          timestamp: Date.now(),
+          article: {
+            title: tab.title ?? "Selection",
+            byline: "",
+            publishedDate: "",
+            bodyHtml: `<p>${selectedText}</p>`,
+            bodyText: selectedText,
+            leadImageUrl: "",
+            wordCount: selectedText.split(/\s+/).filter(Boolean).length,
+            readingTimeMinutes: Math.ceil(selectedText.split(/\s+/).filter(Boolean).length / 200),
+          },
+        };
+        const apiBaseUrl = await getApiBaseUrl();
+        const tags = await autoTagClip(clip, apiBaseUrl);
+        const item = await persistClip(clip, tags);
+        await trySaveToApi(item, apiBaseUrl);
+      })().catch(console.error);
+      break;
+    }
+
+    case "qba-screenshot-region":
+      chrome.tabs.sendMessage(
+        tab.id,
+        { type: "START_REGION_SCREENSHOT" },
+        (response) => {
+          if (!response?.success) return;
+          (async () => {
+            const clip = {
+              id: `clip-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+              type: "image",
+              url: tab.url ?? "",
+              faviconUrl: `${new URL(tab.url ?? "http://example.com").origin}/favicon.ico`,
+              title: `Screenshot of ${tab.title ?? "page"}`,
+              description: "",
+              timestamp: Date.now(),
+              screenshotDataUrl: response.dataUrl,
+            };
+            const apiBaseUrl = await getApiBaseUrl();
+            const tags = await autoTagClip(clip, apiBaseUrl);
+            const item = await persistClip(clip, tags);
+            await trySaveToApi(item, apiBaseUrl);
+          })().catch(console.error);
+        }
+      );
+      break;
+  }
+});
+
+// ─── Clipper helpers ───────────────────────────────────────────────────────
+
+const CONTENT_TYPE_APP_MAP = {
+  article: "quantsink",
+  video: "quanttube",
+  image: "quantedits",
+  code: "quantcode",
+  recipe: "quantrecipes",
+  product: "quantshop",
+  generic: "quantbrowse",
+};
+
+/**
+ * Minimal statistical auto-tagger (no ML dependency in service worker).
+ */
+async function autoTagClip(clip, apiBaseUrl) {
+  const text = clip.article?.bodyText
+    || clip.code?.snippet
+    || `${clip.title} ${clip.description}`
+    || "";
+
+  try {
+    const resp = await fetch(`${apiBaseUrl}/api/tag`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: text.slice(0, 4000) }),
+      signal: AbortSignal.timeout(6000),
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data?.tags?.length) {
+        return {
+          title: data.title || cleanTitle(clip.title || clip.url),
+          summary: data.summary || text.slice(0, 200),
+          tags: data.tags.slice(0, 5),
+          category: data.category || "other",
+          sentiment: data.sentiment || "neutral",
+          language: data.language || "en",
+          translatedTitle: data.translatedTitle || "",
+          translatedSummary: data.translatedSummary || "",
+          suggestedApp: CONTENT_TYPE_APP_MAP[clip.type] || "quantbrowse",
+          confidence: 0.8,
+          processingMs: 0,
+        };
+      }
+    }
+  } catch {
+    // fall through to statistical method
+  }
+
+  const tags = extractKeywordsSimple(text, 5);
+  const category = classifyCategorySimple(text);
+  const sentiment = analyzeSentimentSimple(text);
+  const summary = text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 200);
+
+  return {
+    title: cleanTitle(clip.article?.title || clip.video?.title || clip.title || clip.url),
+    summary,
+    tags,
+    category,
+    sentiment,
+    language: "en",
+    translatedTitle: "",
+    translatedSummary: "",
+    suggestedApp: CONTENT_TYPE_APP_MAP[clip.type] || "quantbrowse",
+    confidence: 0.5,
+    processingMs: 0,
+  };
+}
+
+function cleanTitle(raw) {
+  if (!raw) return "";
+  const parts = raw.split(/\s*[\|–—-]\s*/);
+  const cleaned = parts
+    .map((p) => p.replace(/^\s*(BREAKING|WATCH|VIDEO|OPINION|SPONSORED):\s*/i, "").trim())
+    .filter((p) => p.length > 5);
+  return (cleaned.sort((a, b) => b.length - a.length)[0] ?? raw).trim().slice(0, 120);
+}
+
+const STOPWORDS_SET = new Set([
+  "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for",
+  "of", "with", "by", "from", "is", "are", "was", "were", "be", "been",
+  "have", "has", "had", "do", "does", "did", "will", "would", "could",
+  "should", "not", "no", "this", "that", "it", "he", "she", "we", "they",
+  "i", "you", "my", "your", "our", "their",
+]);
+
+function extractKeywordsSimple(text, max) {
+  const lower = text.toLowerCase().replace(/[^\w\s]/g, " ");
+  const words = lower.split(/\s+/).filter((w) => w.length > 3 && !STOPWORDS_SET.has(w));
+  const freq = new Map();
+  for (const w of words) freq.set(w, (freq.get(w) || 0) + 1);
+  return [...freq.entries()]
+    .filter(([, c]) => c >= 2)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, max)
+    .map(([term]) => term);
+}
+
+const CATEGORY_KEYWORDS = {
+  technology: ["javascript", "python", "api", "software", "code", "developer", "ai", "cloud"],
+  science: ["research", "study", "experiment", "physics", "biology", "quantum"],
+  business: ["startup", "revenue", "funding", "market", "enterprise"],
+  finance: ["stock", "crypto", "invest", "portfolio", "bitcoin"],
+  health: ["health", "medical", "disease", "treatment", "fitness"],
+  sports: ["game", "match", "team", "championship", "athlete"],
+  entertainment: ["movie", "film", "streaming", "celebrity", "trailer"],
+  food: ["recipe", "ingredient", "cook", "restaurant", "cuisine"],
+  education: ["learn", "course", "tutorial", "university"],
+  travel: ["destination", "hotel", "flight", "travel"],
+};
+
+function classifyCategorySimple(text) {
+  const lower = text.toLowerCase();
+  let bestCat = "other";
+  let bestScore = 0;
+  for (const [cat, kws] of Object.entries(CATEGORY_KEYWORDS)) {
+    const score = kws.filter((kw) => lower.includes(kw)).length;
+    if (score > bestScore) { bestScore = score; bestCat = cat; }
+  }
+  return bestCat;
+}
+
+const POS_WORDS = new Set([
+  "good", "great", "excellent", "amazing", "wonderful", "love", "best",
+  "success", "win", "positive", "improve", "growth", "helpful", "easy",
+]);
+const NEG_WORDS = new Set([
+  "bad", "terrible", "awful", "horrible", "worst", "hate", "fail",
+  "loss", "negative", "decline", "problem", "error", "crash", "dangerous",
+]);
+
+function analyzeSentimentSimple(text) {
+  const words = text.toLowerCase().split(/\W+/);
+  let pos = 0, neg = 0;
+  for (const w of words) {
+    if (POS_WORDS.has(w)) pos++;
+    if (NEG_WORDS.has(w)) neg++;
+  }
+  const total = pos + neg;
+  if (total === 0) return "neutral";
+  if (pos / total > 0.6) return "positive";
+  if (neg / total > 0.4) return "negative";
+  return "neutral";
+}
+
+// ─── Storage helpers ───────────────────────────────────────────────────────
+
+async function getSavedItems() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get("qba_saved_items", ({ qba_saved_items }) => {
+      resolve((qba_saved_items || []).sort((a, b) => b.savedAt - a.savedAt));
+    });
+  });
+}
+
+async function getCollections() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get("qba_collections", ({ qba_collections }) => {
+      resolve((qba_collections || []).sort((a, b) => b.updatedAt - a.updatedAt));
+    });
+  });
+}
+
+async function persistClip(clip, tags) {
+  const items = await getSavedItems();
+  const normalizedUrl = normalizeUrl(clip.url);
+
+  const existing = items.find((i) => i.normalizedUrl === normalizedUrl);
+  const prevVersion = existing?.versions?.slice(-1)[0] ?? null;
+  const newVersion = {
+    versionNumber: (prevVersion?.versionNumber || 0) + 1,
+    savedAt: Date.now(),
+    bodyTextHash: "",
+    diff: "",
+  };
+
+  const item = {
+    id: clip.id,
+    url: clip.url,
+    normalizedUrl,
+    clip,
+    tags,
+    app: tags.suggestedApp || "quantbrowse",
+    status: "queued",
+    savedAt: Date.now(),
+    updatedAt: Date.now(),
+    remoteId: null,
+    errorMessage: null,
+    versions: [...(existing?.versions || []), newVersion],
+  };
+
+  const filtered = items
+    .filter((i) => i.id !== item.id && i.normalizedUrl !== item.normalizedUrl)
+    .slice(0, 4999);
+
+  await chrome.storage.local.set({ qba_saved_items: [item, ...filtered] });
+  return item;
+}
+
+async function deleteSavedItem(id) {
+  const items = await getSavedItems();
+  await chrome.storage.local.set({
+    qba_saved_items: items.filter((i) => i.id !== id),
+  });
+}
+
+function normalizeUrl(raw) {
+  try {
+    const u = new URL(raw);
+    const TRACKING = [
+      "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
+      "ref", "source", "fbclid", "gclid",
+    ];
+    TRACKING.forEach((p) => u.searchParams.delete(p));
+    if (!u.hash.startsWith("#/")) u.hash = "";
+    u.hostname = u.hostname.toLowerCase();
+    return u.toString();
+  } catch {
+    return raw;
+  }
+}
+
+async function trySaveToApi(item, apiBaseUrl) {
+  const endpointMap = {
+    quantsink: "/api/quantsink/save",
+    quanttube: "/api/quanttube/save",
+    quantedits: "/api/quantedits/save",
+    quantbrowse: "/api/quantbrowse/save",
+    quantdocs: "/api/quantdocs/save",
+    quantcode: "/api/quantcode/save",
+    quantshop: "/api/quantshop/save",
+    quantrecipes: "/api/quantrecipes/save",
+    quantmind: "/api/quantmind/save",
+  };
+
+  const endpoint = endpointMap[item.app] || endpointMap["quantbrowse"];
+
+  try {
+    const resp = await fetch(`${apiBaseUrl}${endpoint}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sourceUrl: item.url,
+        title: item.tags.title,
+        summary: item.tags.summary,
+        tags: item.tags.tags,
+        category: item.tags.category,
+        sentiment: item.tags.sentiment,
+        language: item.tags.language,
+        savedAt: item.savedAt,
+        faviconUrl: item.clip.faviconUrl,
+        bodyHtml: item.clip.article?.bodyHtml,
+        bodyText: item.clip.article?.bodyText,
+        snippet: item.clip.code?.snippet,
+        codeLanguage: item.clip.code?.language,
+        embedUrl: item.clip.video?.embedUrl,
+        imageUrl: item.clip.image?.src,
+        screenshotDataUrl: item.clip.screenshotDataUrl,
+      }),
+      signal: AbortSignal.timeout(12000),
+    });
+
+    if (resp.ok) {
+      const data = await resp.json().catch(() => ({}));
+      item.remoteId = data.id || null;
+      item.status = "saved";
+      item.updatedAt = Date.now();
+
+      const items = await getSavedItems();
+      const idx = items.findIndex((i) => i.id === item.id);
+      if (idx !== -1) {
+        items[idx] = item;
+        await chrome.storage.local.set({ qba_saved_items: items });
+      }
+    }
+  } catch {
+    // Network offline — stays in queue for retry
+  }
+
+  return { success: true, item, isDuplicate: false };
+}
+
+async function syncOfflineQueue(apiBaseUrl) {
+  const items = await getSavedItems();
+  const queued = items.filter((i) => i.status === "queued");
+  let synced = 0;
+  let failed = 0;
+
+  for (const item of queued) {
+    try {
+      const result = await trySaveToApi(item, apiBaseUrl);
+      if (result.item.status === "saved") synced++;
+      else failed++;
+    } catch {
+      failed++;
+    }
+  }
+
+  return { synced, failed };
+}
+
+// ─── Periodic queue sync ───────────────────────────────────────────────────
+
+chrome.alarms.create("qba-sync-queue", { periodInMinutes: 2 });
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name !== "qba-sync-queue") return;
+  const apiBaseUrl = await getApiBaseUrl();
+  await syncOfflineQueue(apiBaseUrl);
+});
+

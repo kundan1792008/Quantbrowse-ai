@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Quantbrowse AI",
-  "version": "2.0.0",
-  "description": "AI OS Shell — Shadow DOM injection, swarm coordination, and cross-tab orchestration.",
+  "version": "2.1.0",
+  "description": "AI OS Shell — Universal Web Clipper, Shadow DOM injection, swarm coordination, and cross-tab orchestration.",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
@@ -19,11 +19,20 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js"],
+      "js": ["content.js", "content/clipper.js"],
       "run_at": "document_idle",
       "all_frames": false
     }
   ],
+  "commands": {
+    "quick_switch": {
+      "suggested_key": {
+        "default": "Ctrl+Space",
+        "mac": "Command+Shift+Space"
+      },
+      "description": "Open Tab Quick-Switch"
+    }
+  },
   "permissions": [
     "activeTab",
     "alarms",
@@ -34,7 +43,10 @@
     "storage",
     "tabGroups",
     "tabs",
-    "declarativeNetRequest"
+    "webNavigation",
+    "declarativeNetRequest",
+    "contextMenus",
+    "clipboardWrite"
   ],
   "host_permissions": [
     "<all_urls>"

@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quantbrowse AI — Dashboard</title>
+  <style>
+    /* ── Reset & base ────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #0b1120;
+      --surface:     #111827;
+      --surface2:    #1e293b;
+      --border:      #1e293b;
+      --accent:      #6366f1;
+      --accent2:     #8b5cf6;
+      --text:        #f1f5f9;
+      --text-muted:  #94a3b8;
+      --text-faint:  #475569;
+      --green:       #22c55e;
+      --red:         #ef4444;
+      --orange:      #f97316;
+      --yellow:      #eab308;
+      --pink:        #ec4899;
+      --blue:        #3b82f6;
+      --purple:      #a855f7;
+      --radius:      12px;
+      --radius-sm:   8px;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    /* ── Layout ──────────────────────────────────────────────────────── */
+    .layout {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* ── Sidebar ─────────────────────────────────────────────────────── */
+    .sidebar {
+      width: 220px;
+      flex-shrink: 0;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 24px 0 16px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+    }
+
+    .sidebar-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 20px 24px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 16px;
+      color: #fff;
+      flex-shrink: 0;
+    }
+
+    .logo-text {
+      font-weight: 700;
+      font-size: 15px;
+      line-height: 1.2;
+    }
+
+    .logo-sub {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+
+    .nav {
+      padding: 16px 12px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 12px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      color: var(--text-muted);
+      font-weight: 500;
+      transition: background .15s, color .15s;
+      border: none;
+      background: none;
+      width: 100%;
+      text-align: left;
+    }
+
+    .nav-item:hover { background: var(--surface2); color: var(--text); }
+    .nav-item.active { background: rgba(99,102,241,.18); color: var(--accent); }
+
+    .nav-icon { font-size: 16px; width: 20px; text-align: center; flex-shrink: 0; }
+
+    .sidebar-footer {
+      padding: 12px 20px;
+      border-top: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--text-faint);
+    }
+
+    /* ── Main content ────────────────────────────────────────────────── */
+    .main {
+      flex: 1;
+      padding: 32px;
+      overflow-y: auto;
+      max-width: calc(100vw - 220px);
+    }
+
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* ── Page header ─────────────────────────────────────────────────── */
+    .page-header {
+      margin-bottom: 28px;
+    }
+
+    .page-title {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .page-subtitle {
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+
+    /* ── Cards ───────────────────────────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+
+    .card-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      margin-bottom: 12px;
+    }
+
+    /* ── Grid layouts ────────────────────────────────────────────────── */
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    /* ── Stat cards ──────────────────────────────────────────────────── */
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 500;
+      margin-bottom: 8px;
+    }
+
+    .stat-value {
+      font-size: 28px;
+      font-weight: 700;
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+
+    .stat-sub {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .stat-value.accent  { color: var(--accent); }
+    .stat-value.green   { color: var(--green); }
+    .stat-value.orange  { color: var(--orange); }
+    .stat-value.purple  { color: var(--purple); }
+
+    /* ── Usage table ─────────────────────────────────────────────────── */
+    .usage-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .usage-table th {
+      text-align: left;
+      padding: 10px 12px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-faint);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .usage-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(30,41,59,.5);
+      vertical-align: middle;
+    }
+
+    .usage-table tr:last-child td { border-bottom: none; }
+
+    .domain-cell {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .domain-favicon {
+      width: 16px;
+      height: 16px;
+      border-radius: 3px;
+      background: var(--surface2);
+      object-fit: contain;
+    }
+
+    .domain-name { font-weight: 500; }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 100px;
+      font-size: 11px;
+      font-weight: 500;
+      background: rgba(99,102,241,.18);
+      color: var(--accent);
+    }
+
+    .tag.distraction { background: rgba(239,68,68,.18); color: var(--red); }
+    .tag.saved       { background: rgba(34,197,94,.18);  color: var(--green); }
+
+    /* ── Progress bar ────────────────────────────────────────────────── */
+    .progress-wrap {
+      background: var(--surface2);
+      border-radius: 100px;
+      height: 6px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      border-radius: 100px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      transition: width .4s ease;
+    }
+
+    .progress-fill.distraction {
+      background: linear-gradient(90deg, var(--orange), var(--red));
+    }
+
+    /* ── Score ring ──────────────────────────────────────────────────── */
+    .score-section {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      margin-bottom: 28px;
+    }
+
+    .score-ring-wrap {
+      position: relative;
+      width: 140px;
+      height: 140px;
+      flex-shrink: 0;
+    }
+
+    .score-ring {
+      transform: rotate(-90deg);
+    }
+
+    .score-ring-bg { fill: none; stroke: var(--surface2); stroke-width: 10; }
+    .score-ring-fill {
+      fill: none;
+      stroke: url(#scoreGrad);
+      stroke-width: 10;
+      stroke-linecap: round;
+      transition: stroke-dashoffset .6s ease;
+    }
+
+    .score-center {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .score-number {
+      font-size: 32px;
+      font-weight: 800;
+      line-height: 1;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .score-label {
+      font-size: 10px;
+      color: var(--text-faint);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      margin-top: 2px;
+    }
+
+    .score-breakdown {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .score-row {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .score-row-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .score-row-pts {
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    /* ── Weekly history chart ────────────────────────────────────────── */
+    .bar-chart {
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+      height: 80px;
+    }
+
+    .bar-wrap {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      height: 100%;
+      justify-content: flex-end;
+    }
+
+    .bar {
+      width: 100%;
+      border-radius: 4px 4px 0 0;
+      background: linear-gradient(to top, var(--accent), var(--accent2));
+      min-height: 2px;
+      transition: height .4s ease;
+    }
+
+    .bar-label {
+      font-size: 10px;
+      color: var(--text-faint);
+    }
+
+    /* ── Article cards ───────────────────────────────────────────────── */
+    .article-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .article-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 14px 16px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      cursor: pointer;
+      transition: border-color .15s;
+      text-decoration: none;
+    }
+
+    .article-card:hover { border-color: var(--accent); }
+
+    .article-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+
+    .article-body { flex: 1; min-width: 0; }
+
+    .article-title {
+      font-weight: 600;
+      color: var(--text);
+      font-size: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .article-meta {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* ── Redirect stats table ────────────────────────────────────────── */
+    .redirect-row {
+      display: grid;
+      grid-template-columns: 1fr auto auto auto;
+      gap: 12px;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(30,41,59,.5);
+    }
+
+    .redirect-row:last-child { border-bottom: none; }
+
+    .redirect-domain { font-weight: 500; }
+
+    .redirect-stat {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-align: right;
+    }
+
+    .redirect-stat span { font-weight: 600; color: var(--text); }
+
+    /* ── Toggle switch ───────────────────────────────────────────────── */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(30,41,59,.5);
+    }
+
+    .toggle-row:last-child { border-bottom: none; }
+
+    .toggle-label { font-weight: 500; }
+    .toggle-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+    .toggle {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+
+    .toggle input { opacity: 0; width: 0; height: 0; }
+
+    .toggle-track {
+      position: absolute;
+      inset: 0;
+      background: var(--surface2);
+      border-radius: 100px;
+      cursor: pointer;
+      transition: background .2s;
+    }
+
+    .toggle-track::after {
+      content: "";
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      top: 3px;
+      left: 3px;
+      transition: transform .2s, background .2s;
+    }
+
+    .toggle input:checked + .toggle-track { background: var(--accent); }
+    .toggle input:checked + .toggle-track::after {
+      transform: translateX(20px);
+      background: #fff;
+    }
+
+    /* ── Buttons ─────────────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 16px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s, transform .1s;
+      border: none;
+    }
+
+    .btn:hover  { opacity: .88; }
+    .btn:active { opacity: .78; transform: scale(.98); }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #fff;
+    }
+
+    .btn-secondary {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    /* ── Loading / empty states ──────────────────────────────────────── */
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-muted);
+    }
+
+    .empty-icon { font-size: 32px; margin-bottom: 10px; }
+    .empty-title { font-weight: 600; margin-bottom: 4px; }
+    .empty-sub { font-size: 12px; }
+
+    .spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 2px solid var(--surface2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Scrollbar ───────────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--surface2); border-radius: 100px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
+
+    /* ── Summary banner ──────────────────────────────────────────────── */
+    .summary-banner {
+      background: linear-gradient(135deg, rgba(99,102,241,.15), rgba(139,92,246,.15));
+      border: 1px solid rgba(99,102,241,.3);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .summary-icon { font-size: 24px; }
+
+    .summary-text { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+    .summary-text strong { color: var(--text); }
+  </style>
+</head>
+<body>
+
+<div class="layout">
+  <!-- ── Sidebar ────────────────────────────────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">Q</div>
+      <div>
+        <div class="logo-text">Quantbrowse</div>
+        <div class="logo-sub">AI Dashboard</div>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <button class="nav-item active" data-page="usage">
+        <span class="nav-icon">📊</span> Usage
+      </button>
+      <button class="nav-item" data-page="tabs">
+        <span class="nav-icon">🗂️</span> Smart Tabs
+      </button>
+      <button class="nav-item" data-page="digest">
+        <span class="nav-icon">☀️</span> Daily Digest
+      </button>
+      <button class="nav-item" data-page="surprises">
+        <span class="nav-icon">🤖</span> AI Surprises
+      </button>
+      <button class="nav-item" data-page="score">
+        <span class="nav-icon">🏆</span> Productivity
+      </button>
+      <button class="nav-item" data-page="redirect">
+        <span class="nav-icon">🔀</span> Ecosystem
+      </button>
+      <button class="nav-item" data-page="settings">
+        <span class="nav-icon">⚙️</span> Settings
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">Quantbrowse AI v2.0</div>
+  </aside>
+
+  <!-- ── Main ───────────────────────────────────────────────────────────── -->
+  <main class="main">
+
+    <!-- ═══ Usage Dashboard ══════════════════════════════════════════════ -->
+    <section class="page active" id="page-usage">
+      <div class="page-header">
+        <h1 class="page-title">Usage Dashboard</h1>
+        <p class="page-subtitle">Track how you spend your browsing time and potential savings with Quantbrowse.</p>
+      </div>
+
+      <div id="usage-summary-banner" class="summary-banner">
+        <div class="summary-icon">💡</div>
+        <div class="summary-text" id="usage-summary-text">Loading today's summary…</div>
+      </div>
+
+      <div class="grid-3" id="usage-stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Total Time Today</div>
+          <div class="stat-value accent" id="stat-total-time">—</div>
+          <div class="stat-sub" id="stat-total-visits">— visits</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Time Saved (est.)</div>
+          <div class="stat-value green" id="stat-saved-time">—</div>
+          <div class="stat-sub">with Quantbrowse</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Distraction %</div>
+          <div class="stat-value orange" id="stat-distraction">—</div>
+          <div class="stat-sub" id="stat-distraction-sub">of today's browsing</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Top Sites Today</div>
+        <div id="usage-loading" style="text-align:center;padding:24px;"><div class="spinner"></div></div>
+        <table class="usage-table" id="usage-table" style="display:none;">
+          <thead>
+            <tr>
+              <th>Domain</th>
+              <th>Time Today</th>
+              <th>Visits</th>
+              <th>Time Saved</th>
+              <th>Type</th>
+            </tr>
+          </thead>
+          <tbody id="usage-tbody"></tbody>
+        </table>
+        <div id="usage-empty" class="empty-state" style="display:none;">
+          <div class="empty-icon">📭</div>
+          <div class="empty-title">No browsing data yet</div>
+          <div class="empty-sub">Start browsing and your usage will appear here.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ Smart Tabs ═══════════════════════════════════════════════════ -->
+    <section class="page" id="page-tabs">
+      <div class="page-header">
+        <h1 class="page-title">Smart Tab Grouping</h1>
+        <p class="page-subtitle">AI organises your open tabs into colour-coded categories.</p>
+      </div>
+
+      <div class="grid-2" style="margin-bottom:24px;">
+        <div class="stat-card">
+          <div class="stat-label">Open Tabs</div>
+          <div class="stat-value accent" id="tab-count">—</div>
+          <div class="stat-sub" id="tab-overload-hint"></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Categories Detected</div>
+          <div class="stat-value purple" id="tab-categories">—</div>
+          <div class="stat-sub">unique groups</div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:24px;">
+        <div class="card-title">Tab Breakdown</div>
+        <div id="tab-breakdown-loading" style="text-align:center;padding:24px;"><div class="spinner"></div></div>
+        <div id="tab-breakdown" style="display:none;"></div>
+      </div>
+
+      <div style="display:flex;gap:12px;">
+        <button class="btn btn-primary" id="btn-auto-group">🗂️ Auto-Group Tabs</button>
+        <button class="btn btn-secondary" id="btn-collapse-groups">📦 Collapse Inactive Groups</button>
+      </div>
+      <div id="tab-action-result" style="margin-top:12px;color:var(--green);font-size:13px;"></div>
+    </section>
+
+    <!-- ═══ Daily Digest ═════════════════════════════════════════════════ -->
+    <section class="page" id="page-digest">
+      <div class="page-header">
+        <h1 class="page-title">Daily Digest</h1>
+        <p class="page-subtitle">Articles your AI found overnight based on your browsing interests.</p>
+      </div>
+
+      <div class="card" style="margin-bottom:24px;">
+        <div class="card-title">Articles Found</div>
+        <div id="digest-loading" style="text-align:center;padding:24px;"><div class="spinner"></div></div>
+        <div class="article-list" id="digest-articles" style="display:none;"></div>
+        <div id="digest-empty" class="empty-state" style="display:none;">
+          <div class="empty-icon">☀️</div>
+          <div class="empty-title">No articles yet</div>
+          <div class="empty-sub">Keep browsing — your AI will find interesting content overnight.</div>
+        </div>
+      </div>
+
+      <button class="btn btn-secondary" id="btn-clear-digest">🗑️ Mark All as Read</button>
+    </section>
+
+    <!-- ═══ AI Surprises ═════════════════════════════════════════════════ -->
+    <section class="page" id="page-surprises">
+      <div class="page-header">
+        <h1 class="page-title">AI Surprises</h1>
+        <p class="page-subtitle">Variable-reward content bookmarked by your AI while you browse.</p>
+      </div>
+
+      <div class="card" style="margin-bottom:24px;">
+        <div class="card-title">AI Bookmarks</div>
+        <div id="surprises-loading" style="text-align:center;padding:24px;"><div class="spinner"></div></div>
+        <div class="article-list" id="surprises-list" style="display:none;"></div>
+        <div id="surprises-empty" class="empty-state" style="display:none;">
+          <div class="empty-icon">🤖</div>
+          <div class="empty-title">No surprises yet</div>
+          <div class="empty-sub">Your AI is learning your interests. Surprises will appear soon!</div>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" id="btn-trigger-surprise">✨ Trigger Surprise Now</button>
+    </section>
+
+    <!-- ═══ Productivity Score ════════════════════════════════════════════ -->
+    <section class="page" id="page-score">
+      <div class="page-header">
+        <h1 class="page-title">Productivity Score</h1>
+        <p class="page-subtitle">Weekly score (0–100) based on your browsing habits and AI feature usage.</p>
+      </div>
+
+      <div class="card" style="margin-bottom:24px;">
+        <div class="card-title">This Week's Estimate</div>
+        <div id="score-loading" style="text-align:center;padding:24px;"><div class="spinner"></div></div>
+        <div id="score-content" style="display:none;">
+          <div class="score-section">
+            <div class="score-ring-wrap">
+              <svg class="score-ring" viewBox="0 0 140 140" width="140" height="140">
+                <defs>
+                  <linearGradient id="scoreGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%"   stop-color="#6366f1"/>
+                    <stop offset="100%" stop-color="#8b5cf6"/>
+                  </linearGradient>
+                </defs>
+                <circle class="score-ring-bg" cx="70" cy="70" r="60"/>
+                <circle class="score-ring-fill" cx="70" cy="70" r="60"
+                  stroke-dasharray="377" stroke-dashoffset="377" id="score-ring-fill"/>
+              </svg>
+              <div class="score-center">
+                <div class="score-number" id="score-number">0</div>
+                <div class="score-label">/ 100</div>
+              </div>
+            </div>
+            <div class="score-breakdown" id="score-breakdown"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Weekly History</div>
+        <div id="score-history-loading" style="text-align:center;padding:24px;"><div class="spinner"></div></div>
+        <div id="score-history" style="display:none;"></div>
+        <div id="score-history-empty" class="empty-state" style="display:none;">
+          <div class="empty-icon">📅</div>
+          <div class="empty-title">No history yet</div>
+          <div class="empty-sub">Scores are computed each Sunday evening.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ Ecosystem Redirect ════════════════════════════════════════════ -->
+    <section class="page" id="page-redirect">
+      <div class="page-header">
+        <h1 class="page-title">Ecosystem Redirect</h1>
+        <p class="page-subtitle">Nudge stats — how often you've been offered Quant alternatives.</p>
+      </div>
+
+      <div class="card" style="margin-bottom:24px;">
+        <div id="redirect-toggle-row" class="toggle-row">
+          <div>
+            <div class="toggle-label">Ecosystem Redirect Badges</div>
+            <div class="toggle-sub">Show badges on competitor sites suggesting Quant apps</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="redirect-enabled-toggle" checked>
+            <span class="toggle-track"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Redirect Statistics</div>
+        <div id="redirect-loading" style="text-align:center;padding:24px;"><div class="spinner"></div></div>
+        <div id="redirect-stats" style="display:none;"></div>
+        <div id="redirect-empty" class="empty-state" style="display:none;">
+          <div class="empty-icon">🔀</div>
+          <div class="empty-title">No redirect events yet</div>
+          <div class="empty-sub">Visit YouTube, Reddit, or other supported sites to see badges.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ Settings ══════════════════════════════════════════════════════ -->
+    <section class="page" id="page-settings">
+      <div class="page-header">
+        <h1 class="page-title">Settings</h1>
+        <p class="page-subtitle">Configure Quantbrowse AI ambient intelligence features.</p>
+      </div>
+
+      <div class="card" style="margin-bottom:24px;">
+        <div class="card-title">Daily Digest</div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">Enable Daily Digest</div>
+            <div class="toggle-sub">Morning notification with AI-found articles</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="digest-enabled" checked>
+            <span class="toggle-track"></span>
+          </label>
+        </div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">Notification Hour</div>
+            <div class="toggle-sub">Local time for the morning digest</div>
+          </div>
+          <select id="digest-hour" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;">
+            <option value="6">06:00</option>
+            <option value="7">07:00</option>
+            <option value="8" selected>08:00</option>
+            <option value="9">09:00</option>
+            <option value="10">10:00</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:24px;">
+        <div class="card-title">AI Surprises</div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">Enable AI Surprises</div>
+            <div class="toggle-sub">Random interesting content notifications</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="surprise-enabled" checked>
+            <span class="toggle-track"></span>
+          </label>
+        </div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">Max Surprises per Day</div>
+            <div class="toggle-sub">Limit daily surprise notifications</div>
+          </div>
+          <select id="surprise-max" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3" selected>3</option>
+            <option value="5">5</option>
+          </select>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" id="btn-save-settings">💾 Save Settings</button>
+      <div id="settings-saved" style="display:none;color:var(--green);font-size:13px;margin-top:10px;">✓ Settings saved</div>
+    </section>
+
+  </main>
+</div>
+
+<script src="dashboard.js"></script>
+</body>
+</html>

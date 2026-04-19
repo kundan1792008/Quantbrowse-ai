@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Quantbrowse AI",
-  "version": "1.0.0",
-  "description": "AI-powered browsing assistant. Summarize pages, extract data, and interact with the web using natural language.",
+  "version": "2.1.0",
+  "description": "AI OS Shell — Universal Web Clipper, ambient intelligence, smart tab grouping, daily digest, AI bookmarks, productivity score, ecosystem redirect, Shadow DOM injection, swarm coordination, and cross-tab orchestration.",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
@@ -12,6 +12,7 @@
     "default_popup": "popup.html",
     "default_title": "Quantbrowse AI"
   },
+  "options_page": "collections.html",
   "background": {
     "service_worker": "background.js",
     "type": "module"
@@ -19,22 +20,93 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js", "content/content-bundle.js"],
+      "js": ["content.js", "content/content-bundle.js", "content/clipper.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    },
+    {
+      "matches": [
+        "*://*.youtube.com/*",
+        "*://*.twitter.com/*",
+        "*://*.x.com/*",
+        "*://*.reddit.com/*",
+        "*://*.google.com/search*",
+        "*://*.bing.com/*",
+        "*://*.netflix.com/*",
+        "*://*.spotify.com/*",
+        "*://*.medium.com/*",
+        "*://news.google.com/*",
+        "*://*.amazon.com/*"
+      ],
+      "js": ["redirect-badge.js"],
       "run_at": "document_idle"
     }
   ],
+  "commands": {
+    "quick_switch": {
+      "suggested_key": {
+        "default": "Ctrl+Space",
+        "mac": "Command+Shift+Space"
+      },
+      "description": "Open Tab Quick-Switch"
+    },
+    "toggle-dashboard": {
+      "suggested_key": {
+        "default": "Alt+Shift+Q"
+      },
+      "description": "Toggle the Quantbrowse ambient dashboard"
+    },
+    "group-tabs": {
+      "suggested_key": {
+        "default": "Alt+Shift+G"
+      },
+      "description": "Run smart AI tab grouping"
+    },
+    "trigger-digest": {
+      "suggested_key": {
+        "default": "Alt+Shift+D"
+      },
+      "description": "Send the daily digest now"
+    }
+  },
   "permissions": [
     "activeTab",
-    "scripting",
-    "storage",
-    "sidePanel",
+    "alarms",
+    "bookmarks",
+    "clipboardWrite",
     "contextMenus",
-    "tabs"
+    "declarativeNetRequest",
+    "downloads",
+    "history",
+    "idle",
+    "notifications",
+    "scripting",
+    "sidePanel",
+    "storage",
+    "tabGroups",
+    "tabs",
+    "webNavigation",
+    "windows"
   ],
   "host_permissions": [
     "<all_urls>"
   ],
+  "web_accessible_resources": [
+    {
+      "resources": ["dashboard.html", "icons/*.png"],
+      "matches": ["<all_urls>"]
+    }
+  ],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'; base-uri 'self'; form-action 'self'"
+  },
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "csp_bypass_ruleset",
+        "enabled": false,
+        "path": "rules/csp_bypass.json"
+      }
+    ]
   }
 }

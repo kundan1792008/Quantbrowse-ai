@@ -6,7 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "build:ext": "vite build",
+    "test:ext": "vitest run",
+    "test:ext:watch": "vitest",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "next": "15.2.9",
@@ -15,12 +19,18 @@
     "react-dom": "^19"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/chrome": "^0.1.40",
     "@types/node": "^20",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^4.7.0",
     "eslint": "9.39.4",
     "eslint-config-next": "16.2.4",
-    "typescript": "^5"
+    "jsdom": "^25.0.1",
+    "typescript": "^5",
+    "vite": "^5.4.21",
+    "vitest": "^2.1.9"
   }
 }

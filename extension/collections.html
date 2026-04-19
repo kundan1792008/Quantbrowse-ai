@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quantbrowse Collections</title>
+    <link rel="stylesheet" href="collections.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="app-header">
+        <div class="brand">
+          <div class="logo">🤖</div>
+          <div>
+            <h1>Quantbrowse Collections</h1>
+            <p>Universal Web Clipper Library</p>
+          </div>
+        </div>
+        <div class="header-actions">
+          <button id="exportJsonBtn">Export JSON</button>
+          <button id="exportCsvBtn">Export CSV</button>
+          <button id="exportMarkdownBtn">Export Markdown</button>
+        </div>
+      </header>
+
+      <section class="toolbar">
+        <div class="search">
+          <input
+            type="text"
+            id="searchInput"
+            placeholder="Search by title, tag, or URL"
+          />
+          <button id="clearSearchBtn">Clear</button>
+        </div>
+        <div class="filters">
+          <select id="typeFilter">
+            <option value="">All types</option>
+            <option value="page">Page</option>
+            <option value="selection">Selection</option>
+            <option value="link">Link</option>
+            <option value="image">Image</option>
+          </select>
+          <select id="syncFilter">
+            <option value="">Sync status</option>
+            <option value="synced">Synced</option>
+            <option value="queued">Queued</option>
+            <option value="failed">Failed</option>
+            <option value="idle">Local only</option>
+          </select>
+          <select id="sortFilter">
+            <option value="newest">Newest</option>
+            <option value="oldest">Oldest</option>
+            <option value="title">Title</option>
+            <option value="reading">Reading time</option>
+          </select>
+        </div>
+      </section>
+
+      <section class="stats">
+        <div class="stat-card">
+          <span class="stat-label">Total clips</span>
+          <strong id="statTotal">0</strong>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Queued</span>
+          <strong id="statQueued">0</strong>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Synced</span>
+          <strong id="statSynced">0</strong>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Failures</span>
+          <strong id="statFailed">0</strong>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Last saved</span>
+          <strong id="statLastSaved">Never</strong>
+        </div>
+      </section>
+
+      <main class="content">
+        <aside class="clip-list">
+          <div class="clip-list-header">
+            <h2>Clips</h2>
+            <span id="clipCount">0</span>
+          </div>
+          <div id="clipList" class="clip-list-items"></div>
+        </aside>
+
+        <section class="clip-detail">
+          <div id="clipDetail" class="clip-detail-inner">
+            <div class="empty-state">
+              <h3>Select a clip</h3>
+              <p>Pick a clip from the list to see its details, tags, and export options.</p>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="app-footer">
+        <div class="footer-left">
+          <span id="queueSummary">Queue idle</span>
+        </div>
+        <div class="footer-right">
+          <button id="refreshBtn">Refresh</button>
+          <button id="flushQueueBtn">Flush Queue</button>
+          <button id="openOptionsBtn">Preferences</button>
+        </div>
+      </footer>
+    </div>
+
+    <script src="collections.js"></script>
+  </body>
+</html>

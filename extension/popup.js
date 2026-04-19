@@ -10,6 +10,13 @@ const runBtn = document.getElementById("runBtn");
 const statusEl = document.getElementById("status");
 const resultEl = document.getElementById("result");
 const swarmStatsEl = document.getElementById("swarm-stats");
+const savePageBtn = document.getElementById("savePageBtn");
+const saveSelectionBtn = document.getElementById("saveSelectionBtn");
+const openCollectionsBtn = document.getElementById("openCollectionsBtn");
+const queueFlushBtn = document.getElementById("queueFlushBtn");
+const queueCountEl = document.getElementById("queueCount");
+const queueLastSyncEl = document.getElementById("queueLastSync");
+const queueFailuresEl = document.getElementById("queueFailures");
 const productivityScoreEl = document.getElementById("productivityScore");
 const focusTotalEl = document.getElementById("focusTotal");
 const topSitesEl = document.getElementById("topSites");
@@ -93,13 +100,63 @@ function refreshSwarmStats() {
       return;
     }
     swarmStatsEl.innerHTML = `
-      ${running > 0 ? `<span class="stat-pill"><span class="dot dot-running"></span>${running} running</span>` : ""}
-      ${pending > 0 ? `<span class="stat-pill"><span class="dot dot-pending"></span>${pending} pending</span>` : ""}
-      ${complete > 0 ? `<span class="stat-pill"><span class="dot dot-complete"></span>${complete} done</span>` : ""}
-      ${failed > 0 ? `<span class="stat-pill"><span class="dot dot-failed"></span>${failed} failed</span>` : ""}
+      ${
+        running > 0
+          ? `<span class="stat-pill"><span class="dot dot-running"></span>${running} running</span>`
+          : ""
+      }
+      ${
+        pending > 0
+          ? `<span class="stat-pill"><span class="dot dot-pending"></span>${pending} pending</span>`
+          : ""
+      }
+      ${
+        complete > 0
+          ? `<span class="stat-pill"><span class="dot dot-complete"></span>${complete} done</span>`
+          : ""
+      }
+      ${
+        failed > 0
+          ? `<span class="stat-pill"><span class="dot dot-failed"></span>${failed} failed</span>`
+          : ""
+      }
     `;
   });
 }
+
+// ── Queue stats ──────────────────────────────────────────────────────────────
+
+function refreshQueueStats() {
+  if (!queueCountEl || !queueLastSyncEl || !queueFailuresEl) return;
+  chrome.runtime.sendMessage({ type: "QUEUE_STATS" }, (response) => {
+    if (chrome.runtime.lastError || !response?.success) {
+      queueCountEl.textContent = "0";
+      queueLastSyncEl.textContent = "Unavailable";
+      queueFailuresEl.textContent = "0";
+      return;
+    }
+    const { queue, stats } = response;
+    queueCountEl.textContent = String(queue?.length || 0);
+    queueLastSyncEl.textContent = stats?.lastSyncedAt
+      ? new Date(stats.lastSyncedAt).toLocaleString()
+      : "Never";
+    queueFailuresEl.textContent = String(stats?.clipsFailed || 0);
+  });
+}
+
+refreshQueueStats();
+
+if (savePageBtn) savePageBtn.addEventListener("click", () => handleQuickSave("page"));
+if (saveSelectionBtn) saveSelectionBtn.addEventListener("click", () => handleQuickSave("selection"));
+if (openCollectionsBtn) openCollectionsBtn.addEventListener("click", () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL("collections.html") });
+});
+if (queueFlushBtn) queueFlushBtn.addEventListener("click", () => {
+  chrome.runtime.sendMessage({ type: "QUEUE_FLUSH" }, () => {
+    refreshQueueStats();
+  });
+});
+
 
 function setLoading(loading) {
   if (runBtn) runBtn.disabled = loading;
@@ -150,6 +207,27 @@ async function handleRun() {
       showResult(`⚠ ${response.error ?? "An unknown error occurred."}`, true);
     }
   });
+}
+
+function handleQuickSave(captureMode) {
+  chrome.runtime.sendMessage(
+    { type: "CLIPPER_SAVE", captureMode },
+    (response) => {
+      if (chrome.runtime.lastError) {
+        showResult(
+          `Unable to save clip: ${chrome.runtime.lastError.message}`,
+          true
+        );
+        return;
+      }
+      if (!response?.success) {
+        showResult(`⚠ ${response?.error || "Clip save failed."}`, true);
+        return;
+      }
+      showResult(`Saved: ${response.clip?.title || "Clip"}`);
+      refreshQueueStats();
+    }
+  );
 }
 
 async function refreshDashboard() {
@@ -638,3 +716,10 @@ function exportSavesAsJson() {
     URL.revokeObjectURL(url);
   });
 }
+
+chrome.runtime.onMessage.addListener((message) => {
+  if (message.type === "CLIP_SAVED") {
+    refreshQueueStats();
+    refreshSwarmStats();
+  }
+});

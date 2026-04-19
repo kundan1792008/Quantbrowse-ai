@@ -12,6 +12,7 @@
     "default_popup": "popup.html",
     "default_title": "Quantbrowse AI"
   },
+  "options_page": "collections.html",
   "background": {
     "service_worker": "background.js",
     "type": "module"
@@ -72,6 +73,8 @@
     "activeTab",
     "alarms",
     "bookmarks",
+    "contextMenus",
+    "downloads",
     "history",
     "idle",
     "notifications",

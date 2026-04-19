@@ -90,6 +90,80 @@
         gap: 10px;
       }
 
+      .section-title {
+        font-size: 11px;
+        letter-spacing: 0.3px;
+        text-transform: uppercase;
+        color: #7c7c9c;
+      }
+
+      .quick-actions {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+      }
+
+      .action-btn {
+        background: #1a1a24;
+        border: 1px solid #2a2a3c;
+        border-radius: 10px;
+        padding: 10px 8px;
+        color: #e8e8f0;
+        font-size: 12px;
+        cursor: pointer;
+        transition: border-color 0.15s, transform 0.15s;
+      }
+
+      .action-btn:hover {
+        border-color: #6366f1;
+        transform: translateY(-1px);
+      }
+
+      .action-btn.primary {
+        background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        border: none;
+        color: #fff;
+        font-weight: 600;
+      }
+
+      .queue-card {
+        background: #1a1a24;
+        border: 1px solid #2a2a3c;
+        border-radius: 12px;
+        padding: 10px 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .queue-row {
+        display: flex;
+        justify-content: space-between;
+        font-size: 12px;
+        color: #c4c4d4;
+      }
+
+      .queue-meta {
+        font-size: 11px;
+        color: #7c7c9c;
+      }
+
+      .queue-actions {
+        display: flex;
+        gap: 8px;
+      }
+
+      .queue-actions button {
+        flex: 1;
+        padding: 6px 8px;
+        border-radius: 8px;
+        border: 1px solid #2a2a3c;
+        background: #151520;
+        color: #d4d4e8;
+        font-size: 11px;
+        cursor: pointer;
+      }
+
       .section h2 {
         font-size: 12px;
         font-weight: 600;
@@ -147,12 +221,6 @@
       }
 
       /* ── Quick-save button row ── */
-      .quick-actions {
-        display: flex;
-        gap: 6px;
-        padding: 0 16px 10px;
-      }
-
       .quick-btn {
         flex: 1;
         background: #1a1a24;
@@ -248,14 +316,28 @@
         border-radius: 50%;
         flex-shrink: 0;
       }
-      .dot-running { background: #6366f1; animation: pulse 1.4s ease-in-out infinite; }
-      .dot-pending { background: #f59e0b; }
-      .dot-complete { background: #22c55e; }
-      .dot-failed { background: #f87171; }
+      .dot-running {
+        background: #6366f1;
+        animation: pulse 1.4s ease-in-out infinite;
+      }
+      .dot-pending {
+        background: #f59e0b;
+      }
+      .dot-complete {
+        background: #22c55e;
+      }
+      .dot-failed {
+        background: #f87171;
+      }
 
       @keyframes pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.4; }
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.4;
+        }
       }
 
       .stats {
@@ -336,10 +418,6 @@
         flex-direction: column;
       }
 
-      /* ── Scrollbar ── */
-      #result::-webkit-scrollbar { width: 5px; }
-      #result::-webkit-scrollbar-track { background: transparent; }
-      #result::-webkit-scrollbar-thumb { background: #2a2a3c; border-radius: 4px; }
     </style>
   </head>
   <body>
@@ -355,6 +433,35 @@
       <button class="tab-btn" data-tab="ai">✦ AI</button>
       <button class="tab-btn" data-tab="collections">📁 Saves</button>
       <button class="tab-btn" data-tab="clip">✂ Clip</button>
+    </div>
+
+    <!-- ── Quick-save / queue (Quantbrowse Universal Clipper) ── -->
+    <div class="section">
+      <div class="section-title">Quick save</div>
+      <div class="quick-actions">
+        <button class="action-btn primary" id="savePageBtn">Save Page</button>
+        <button class="action-btn" id="saveSelectionBtn">Save Selection</button>
+        <button class="action-btn" id="openCollectionsBtn">Open Collections</button>
+        <button class="action-btn" id="queueFlushBtn">Flush Queue</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Offline queue</div>
+      <div class="queue-card">
+        <div class="queue-row">
+          <span>Queued clips</span>
+          <strong id="queueCount">0</strong>
+        </div>
+        <div class="queue-row">
+          <span>Last sync</span>
+          <span id="queueLastSync" class="queue-meta">Never</span>
+        </div>
+        <div class="queue-row">
+          <span>Failures</span>
+          <span id="queueFailures" class="queue-meta">0</span>
+        </div>
+      </div>
     </div>
 
     <!-- ── Ambient tab ── -->

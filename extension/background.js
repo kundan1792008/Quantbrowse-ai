@@ -1137,6 +1137,89 @@ async function handleMessage(message, sender) {
         return { success: false, error: String(err) };
       }
     }
+    case "CLIPPER_SAVE": {
+      try {
+        const captureMode = message.captureMode || "page";
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tab?.id) {
+          return { success: false, error: "No active tab found." };
+        }
+        const clip = await clipper.captureFromPopup(tab, captureMode);
+        const saved = await saver.saveClip(clip);
+        await chrome.runtime.sendMessage({ type: "CLIP_SAVED", clip: saved }).catch(() => undefined);
+        return { success: true, clip: saved };
+      } catch (error) {
+        return { success: false, error: String(error) };
+      }
+    }
+    case "COLLECTIONS_STATE": {
+      try {
+        const state = await storage.getState();
+        return { success: true, state };
+      } catch (err) {
+        return { success: false, error: String(err) };
+      }
+    }
+    case "COLLECTIONS_UPDATE": {
+      try {
+        const { clipId, patch } = message;
+        if (!clipId || !patch) {
+          return { success: false, error: "clipId and patch are required." };
+        }
+        const updated = await saver.updateClip(clipId, patch);
+        return { success: true, clip: updated.clip };
+      } catch (err) {
+        return { success: false, error: String(err) };
+      }
+    }
+    case "COLLECTIONS_DELETE": {
+      try {
+        const { clipId } = message;
+        if (!clipId) {
+          return { success: false, error: "clipId is required." };
+        }
+        await saver.deleteClip(clipId);
+        return { success: true };
+      } catch (err) {
+        return { success: false, error: String(err) };
+      }
+    }
+    case "COLLECTIONS_REFRESH_TAGS": {
+      try {
+        const { clipId } = message;
+        if (!clipId) {
+          return { success: false, error: "clipId is required." };
+        }
+        const clip = await saver.refreshTags(clipId);
+        return { success: true, clip };
+      } catch (err) {
+        return { success: false, error: String(err) };
+      }
+    }
+    case "QUEUE_STATS": {
+      try {
+        const state = await storage.getState();
+        return { success: true, queue: state.offlineQueue, stats: state.stats };
+      } catch (err) {
+        return { success: false, error: String(err) };
+      }
+    }
+    case "QUEUE_FLUSH": {
+      try {
+        const result = await saver.flushQueue();
+        return { success: true, result };
+      } catch (err) {
+        return { success: false, error: String(err) };
+      }
+    }
+    case "PREFERENCES_UPDATE": {
+      try {
+        const next = await storage.setPreferences(message.preferences || {});
+        return { success: true, preferences: next };
+      } catch (err) {
+        return { success: false, error: String(err) };
+      }
+    }
     default:
       return { success: false, error: "Unknown message type." };
   }
@@ -1992,46 +2075,13 @@ function toTitleCase(text) {
 function randomChoice(list) {
   return list[Math.floor(Math.random() * list.length)];
 }
-// ─── Context Menu Setup ────────────────────────────────────────────────────
-
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.removeAll(() => {
-    chrome.contextMenus.create({
-      id: "qba-save-to-quant",
-      title: "Save to Quant \u2726",
-      contexts: ["all"],
-    });
-
-    chrome.contextMenus.create({
-      id: "qba-save-link",
-      title: "Save Link to Quant",
-      contexts: ["link"],
-    });
-
-    chrome.contextMenus.create({
-      id: "qba-save-image",
-      title: "Save Image to Quantedits",
-      contexts: ["image"],
-    });
-
-    chrome.contextMenus.create({
-      id: "qba-save-selection",
-      title: "Save Selection to Quant",
-      contexts: ["selection"],
-    });
-
-    chrome.contextMenus.create({
-      id: "qba-screenshot-region",
-      title: "Screenshot Region\u2026",
-      contexts: ["all"],
-    });
-  });
-});
+// ─── Context Menu Handlers (shared by unified setup above) ────────────────
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (!tab?.id) return;
 
   switch (info.menuItemId) {
+    case CONTEXT_MENU_IDS.SAVE_PAGE:
     case "qba-save-to-quant":
       chrome.tabs.sendMessage(
         tab.id,
@@ -2050,6 +2100,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
       );
       break;
 
+    case CONTEXT_MENU_IDS.SAVE_LINK:
     case "qba-save-link": {
       const url = info.linkUrl ?? tab.url ?? "";
       (async () => {
@@ -2070,112 +2121,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
       break;
     }
 
-    // ── Universal clipper: quick save from popup ───────────────────────────
-    case "CLIPPER_SAVE": {
-      const captureMode = message.captureMode || "page";
-      (async () => {
-        try {
-          const [tab] = await chrome.tabs.query({
-            active: true,
-            currentWindow: true,
-          });
-          if (!tab?.id) {
-            sendResponse({ success: false, error: "No active tab found." });
-            return;
-          }
-          const clip = await clipper.captureFromPopup(tab, captureMode);
-          const saved = await saver.saveClip(clip);
-          sendResponse({ success: true, clip: saved });
-          await chrome.runtime
-            .sendMessage({ type: "CLIP_SAVED", clip: saved })
-            .catch(() => undefined);
-        } catch (error) {
-          sendResponse({ success: false, error: String(error) });
-        }
-      })();
-      return true;
-    }
-
-    // ── Collections state for UI ──────────────────────────────────────────
-    case "COLLECTIONS_STATE": {
-      (async () => {
-        const state = await storage.getState();
-        sendResponse({ success: true, state });
-      })();
-      return true;
-    }
-
-    case "COLLECTIONS_UPDATE": {
-      (async () => {
-        const { clipId, patch } = message;
-        if (!clipId || !patch) {
-          sendResponse({ success: false, error: "clipId and patch are required." });
-          return;
-        }
-        const updated = await saver.updateClip(clipId, patch);
-        sendResponse({ success: true, clip: updated.clip });
-      })();
-      return true;
-    }
-
-    case "COLLECTIONS_DELETE": {
-      (async () => {
-        const { clipId } = message;
-        if (!clipId) {
-          sendResponse({ success: false, error: "clipId is required." });
-          return;
-        }
-        await saver.deleteClip(clipId);
-        sendResponse({ success: true });
-      })();
-      return true;
-    }
-
-    case "COLLECTIONS_REFRESH_TAGS": {
-      (async () => {
-        const { clipId } = message;
-        if (!clipId) {
-          sendResponse({ success: false, error: "clipId is required." });
-          return;
-        }
-        const clip = await saver.refreshTags(clipId);
-        sendResponse({ success: true, clip });
-      })();
-      return true;
-    }
-
-    case "QUEUE_STATS": {
-      (async () => {
-        const state = await storage.getState();
-        sendResponse({
-          success: true,
-          queue: state.offlineQueue,
-          stats: state.stats,
-        });
-      })();
-      return true;
-    }
-
-    case "QUEUE_FLUSH": {
-      (async () => {
-        const result = await saver.flushQueue();
-        sendResponse({ success: true, result });
-      })();
-      return true;
-    }
-
-    case "PREFERENCES_UPDATE": {
-      (async () => {
-        const next = await storage.setPreferences(message.preferences || {});
-        sendResponse({ success: true, preferences: next });
-      })();
-      return true;
-    }
-
-    default:
-      return false;
-  }
-});
+    case CONTEXT_MENU_IDS.SAVE_IMAGE:
     case "qba-save-image": {
       const url = info.srcUrl ?? "";
       (async () => {
@@ -2197,6 +2143,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
       break;
     }
 
+    case CONTEXT_MENU_IDS.SAVE_SELECTION:
     case "qba-save-selection": {
       const selectedText = info.selectionText ?? "";
       (async () => {

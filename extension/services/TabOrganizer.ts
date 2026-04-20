@@ -56,7 +56,7 @@ export interface TabSnapshot {
 export interface TopicGroup {
   topic: TabTopic;
   label: string;
-  color: chrome.tabGroups.ColorEnum;
+  color: string;
   tabIds: number[];
   chromeGroupId: number | null;
 }
@@ -426,7 +426,7 @@ const TOPIC_SIGNALS: Record<
 };
 
 /** Color mapping for each topic (Chrome tabGroups colors). */
-const TOPIC_COLORS: Record<TabTopic, chrome.tabGroups.ColorEnum> = {
+const TOPIC_COLORS: Record<TabTopic, string> = {
   work: "blue",
   social: "pink",
   shopping: "yellow",
@@ -597,18 +597,25 @@ export class TabOrganizer {
       this.activeTime.delete(tabId);
     });
 
-    chrome.tabs.onActivated.addListener(({ tabId, previousTabId }) => {
+    chrome.tabs.onActivated.addListener(({ tabId }) => {
       const now = Date.now();
 
-      // Credit active time to the tab that is being deactivated
-      if (previousTabId !== undefined) {
-        const prev = this.lastActivated.get(previousTabId);
-        if (prev !== undefined) {
-          const elapsed = now - prev;
-          const existing = this.activeTime.get(previousTabId) ?? 0;
-          this.activeTime.set(previousTabId, existing + elapsed);
+      // Find the previously active tab in this window to credit its active time
+      chrome.tabs.query({ active: false, currentWindow: true }).then((tabs) => {
+        const previousTab = tabs.find((t) => {
+          const lastActive = this.lastActivated.get(t.id!);
+          return lastActive !== undefined;
+        });
+
+        if (previousTab?.id) {
+          const prev = this.lastActivated.get(previousTab.id);
+          if (prev !== undefined) {
+            const elapsed = now - prev;
+            const existing = this.activeTime.get(previousTab.id) ?? 0;
+            this.activeTime.set(previousTab.id, existing + elapsed);
+          }
         }
-      }
+      });
 
       this.lastActivated.set(tabId, now);
     });
@@ -787,10 +794,18 @@ export class TabOrganizer {
         }
 
         try {
-          const chromeGroupId = await chrome.tabs.group({ tabIds, createProperties: { windowId } });
+          // Ensure we have at least one tab ID
+          if (tabIds.length === 0) continue;
+
+          // Chrome tabs.group expects single tabId or non-empty array
+          const chromeGroupId = await chrome.tabs.group({
+            tabIds: tabIds.length === 1 ? tabIds[0]! : ([...tabIds] as [number, ...number[]]),
+            createProperties: { windowId },
+          });
+
           await chrome.tabGroups.update(chromeGroupId, {
             title: group.label,
-            color: group.color,
+            color: group.color as chrome.tabGroups.Color,
             collapsed: false,
           });
           group.chromeGroupId = chromeGroupId;

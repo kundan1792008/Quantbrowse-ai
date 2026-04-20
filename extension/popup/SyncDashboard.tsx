@@ -2,7 +2,7 @@
  * SyncDashboard.tsx - Physiological harmony card for the popup dashboard.
  */
 
-import { useEffect, useMemo, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import {
   HealthTelemetry,
   type HealthTelemetrySnapshot,
@@ -34,6 +34,11 @@ function scoreColor(score: number): string {
 }
 
 export function SyncDashboard({ telemetry }: SyncDashboardProps): ReactElement {
+  const fallbackTelemetryRef = useRef<HealthTelemetry | null>(null);
+  if (!telemetry && !fallbackTelemetryRef.current) {
+    fallbackTelemetryRef.current = new HealthTelemetry();
+  }
+
   const [snapshot, setSnapshot] = useState<HealthTelemetrySnapshot>({
     current: null,
     baselineBpm: 72,
@@ -45,7 +50,8 @@ export function SyncDashboard({ telemetry }: SyncDashboardProps): ReactElement {
   });
 
   useEffect(() => {
-    const service = telemetry ?? new HealthTelemetry();
+    const service = telemetry ?? fallbackTelemetryRef.current;
+    if (!service) return undefined;
     service.start();
 
     const unsubscribe = service.subscribe((next) => {
@@ -102,7 +108,13 @@ export function SyncDashboard({ telemetry }: SyncDashboardProps): ReactElement {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <svg viewBox="0 0 92 92" width="76" height="76" aria-hidden>
+        <svg
+          viewBox="0 0 92 92"
+          width="76"
+          height="76"
+          role="img"
+          aria-label={`Harmony score ${gauge.score} out of 100`}
+        >
           <circle cx="46" cy="46" r="40" stroke="#1f2937" strokeWidth="8" fill="none" />
           <circle
             cx="46"

@@ -88,14 +88,15 @@ export class UIAdapter {
     this.ensureStyle();
     this.state = deriveUIAdaptationState(snapshot);
 
-    const root = this.doc.documentElement;
-    root.style.setProperty('--qb-bio-hue-shift', `${this.state.colorTemperatureDeg}deg`);
-    root.style.setProperty('--qb-bio-contrast', `${this.state.contrast}`);
+    const target = this.doc.body ?? this.doc.documentElement;
+    target.classList.add('qb-bio-adaptive');
+    target.style.setProperty('--qb-bio-hue-shift', `${this.state.colorTemperatureDeg}deg`);
+    target.style.setProperty('--qb-bio-contrast', `${this.state.contrast}`);
 
     if (this.state.microMovement) {
-      root.classList.add('qb-bio-energized');
+      target.classList.add('qb-bio-energized');
     } else {
-      root.classList.remove('qb-bio-energized');
+      target.classList.remove('qb-bio-energized');
     }
 
     this.tuneAnimationPlaybackRate(this.state.playbackRate);
@@ -107,10 +108,11 @@ export class UIAdapter {
   }
 
   destroy(): void {
-    const root = this.doc.documentElement;
-    root.classList.remove('qb-bio-energized');
-    root.style.removeProperty('--qb-bio-hue-shift');
-    root.style.removeProperty('--qb-bio-contrast');
+    const target = this.doc.body ?? this.doc.documentElement;
+    target.classList.remove('qb-bio-adaptive');
+    target.classList.remove('qb-bio-energized');
+    target.style.removeProperty('--qb-bio-hue-shift');
+    target.style.removeProperty('--qb-bio-contrast');
 
     if (this.styleEl?.parentElement) {
       this.styleEl.parentElement.removeChild(this.styleEl);
@@ -138,14 +140,14 @@ export class UIAdapter {
     this.styleEl = this.doc.createElement('style');
     this.styleEl.id = STYLE_ID;
     this.styleEl.textContent = `
-      html {
+      body.qb-bio-adaptive {
         --qb-bio-hue-shift: 0deg;
         --qb-bio-contrast: 1;
         filter: hue-rotate(var(--qb-bio-hue-shift)) contrast(var(--qb-bio-contrast));
         transition: filter 700ms ease;
       }
 
-      html.qb-bio-energized body {
+      body.qb-bio-adaptive.qb-bio-energized {
         animation: qb-bio-micro-shift 2.2s ease-in-out infinite;
         transform-origin: center center;
       }

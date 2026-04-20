@@ -69,14 +69,18 @@ describe('UIAdapter state derivation', () => {
 
 describe('UIAdapter DOM effects', () => {
   beforeEach(() => {
-    document.documentElement.classList.remove('qb-bio-energized');
-    document.documentElement.style.removeProperty('--qb-bio-hue-shift');
-    document.documentElement.style.removeProperty('--qb-bio-contrast');
+    document.body.classList.remove('qb-bio-adaptive');
+    document.body.classList.remove('qb-bio-energized');
+    document.body.style.removeProperty('--qb-bio-hue-shift');
+    document.body.style.removeProperty('--qb-bio-contrast');
 
     const stale = document.getElementById('qb-bio-rhythmic-style');
     stale?.remove();
 
-    (document as Document & { getAnimations: () => Animation[] }).getAnimations = () => [];
+    Object.defineProperty(document, 'getAnimations', {
+      value: () => [],
+      configurable: true,
+    });
   });
 
   it('applies css variables and toggles energized class', () => {
@@ -97,10 +101,10 @@ describe('UIAdapter DOM effects', () => {
     );
 
     expect(document.getElementById('qb-bio-rhythmic-style')).toBeTruthy();
-    expect(document.documentElement.classList.contains('qb-bio-energized')).toBe(true);
-    expect(document.documentElement.style.getPropertyValue('--qb-bio-contrast')).toContain('1.13');
+    expect(document.body.classList.contains('qb-bio-energized')).toBe(true);
+    expect(document.body.style.getPropertyValue('--qb-bio-contrast')).toContain('1.13');
 
     adapter.destroy();
-    expect(document.documentElement.classList.contains('qb-bio-energized')).toBe(false);
+    expect(document.body.classList.contains('qb-bio-energized')).toBe(false);
   });
 });

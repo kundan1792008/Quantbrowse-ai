@@ -72,6 +72,27 @@ function avg(values: number[]): number {
   return values.reduce((total, next) => total + next, 0) / values.length;
 }
 
+function estimateBpmAdjustment(movementAverage: number): number {
+  if (movementAverage > 0.6) return 5;
+  if (movementAverage < 0.2) return -4;
+  return 0;
+}
+
+function estimateHrvAdjustment(movementAverage: number): number {
+  if (movementAverage < 0.2) return -2;
+  return 1;
+}
+
+function isHealthTelemetrySource(value: unknown): value is HealthTelemetrySource {
+  return (
+    value === 'apple_health' ||
+    value === 'google_fit' ||
+    value === 'runtime_bridge' ||
+    value === 'motion_estimate' ||
+    value === 'synthetic'
+  );
+}
+
 export function sanitizeIncomingSample(
   payload: IncomingTelemetryPayload,
   source: HealthTelemetrySource
@@ -315,8 +336,8 @@ export class HealthTelemetry {
       const movementAverage = baseline.movementAverage;
       const estimate = sanitizeIncomingSample(
         {
-          bpm: baseline.baselineBpm + (movementAverage > 0.6 ? 5 : movementAverage < 0.2 ? -4 : 0),
-          hrv: baseline.baselineHrv + (movementAverage < 0.2 ? -2 : 1),
+          bpm: baseline.baselineBpm + estimateBpmAdjustment(movementAverage),
+          hrv: baseline.baselineHrv + estimateHrvAdjustment(movementAverage),
           movement: movementAverage,
           confidence: 0.25,
           timestamp: now,
@@ -337,7 +358,10 @@ export class HealthTelemetry {
       const candidate = stored[STORAGE_KEY];
       if (!candidate) return;
 
-      const restored = sanitizeIncomingSample(candidate, candidate.source ?? 'synthetic');
+      const restored = sanitizeIncomingSample(
+        candidate,
+        isHealthTelemetrySource(candidate.source) ? candidate.source : 'synthetic'
+      );
       if (!restored) return;
 
       const tooOld = Date.now() - restored.timestamp > STALE_TELEMETRY_MS * 4;

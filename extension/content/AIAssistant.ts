@@ -4,6 +4,9 @@
  * service worker via chrome.runtime.sendMessage.
  */
 
+import { ActionPreloader, type PredictedAction } from '../services/ActionPreloader';
+import { BehaviorTelemetry } from '../services/BehaviorTelemetry';
+
 interface ChatMessage {
   id: string;
   role: 'user' | 'assistant' | 'system';
@@ -369,6 +372,12 @@ class AIAssistant {
   private panelLeft = -1;
   private panelTop = -1;
   private highlightedElements: Element[] = [];
+  private behaviorTelemetry: BehaviorTelemetry | null = null;
+  private actionPreloader: ActionPreloader | null = null;
+  private intentLoop: number | null = null;
+  private lastPredictionId: string | null = null;
+  private elementIntentIds = new WeakMap<Element, string>();
+  private nextElementIntentId = 0;
 
   constructor() {
     this.host = document.createElement('div');
@@ -378,6 +387,7 @@ class AIAssistant {
     this.renderBubble();
     document.documentElement.appendChild(this.host);
     this.listenForBackgroundMessages();
+    this.initializeIntentPrediction();
   }
 
   private injectStyles(): void {
@@ -752,6 +762,42 @@ class AIAssistant {
     });
   }
 
+  private initializeIntentPrediction(): void {
+    this.behaviorTelemetry = new BehaviorTelemetry();
+    this.actionPreloader = new ActionPreloader(this.behaviorTelemetry);
+    // 450ms keeps prediction responsive without creating high-frequency DOM churn.
+    this.intentLoop = window.setInterval(() => {
+      const preloader = this.actionPreloader;
+      if (!preloader || this.state === 'panel') return;
+      const prediction = preloader.evaluateNextAction();
+      if (!prediction) {
+        this.lastPredictionId = null;
+        return;
+      }
+      this.preloadPrediction(prediction);
+    }, 450);
+  }
+
+  private preloadPrediction(prediction: PredictedAction): void {
+    const key = this.getPredictionKey(prediction);
+    if (this.lastPredictionId === key) return;
+    this.lastPredictionId = key;
+    this.actionPreloader?.prefetchPredictedAction(prediction);
+  }
+
+  private getPredictionKey(prediction: PredictedAction): string {
+    const el = prediction.element;
+    const href = el instanceof HTMLAnchorElement ? el.href : '';
+    let stableElementId = this.elementIntentIds.get(el);
+    if (!stableElementId) {
+      this.nextElementIntentId += 1;
+      stableElementId = `el-${this.nextElementIntentId}`;
+      this.elementIntentIds.set(el, stableElementId);
+    }
+    const id = el.id || el.getAttribute('name') || el.getAttribute('aria-label') || stableElementId;
+    return `${prediction.type}:${id}:${href}`;
+  }
+
   private makeDraggable(el: HTMLElement): void {
     let startX = 0, startY = 0, startRight = 0, startBottom = 0;
     let moved = false;
@@ -824,6 +870,14 @@ class AIAssistant {
   }
 
   destroy(): void {
+    if (this.intentLoop !== null) {
+      window.clearInterval(this.intentLoop);
+      this.intentLoop = null;
+    }
+    this.actionPreloader?.dispose();
+    this.actionPreloader = null;
+    this.behaviorTelemetry?.dispose();
+    this.behaviorTelemetry = null;
     this.clearHighlights();
     this.host.remove();
   }

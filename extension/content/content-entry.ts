@@ -9,3 +9,4 @@
 
 import './AIAssistant';
 import './PageAnalyzer';
+import './BioRhythmicSync';

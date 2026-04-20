@@ -10,6 +10,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
+import { SyncDashboard } from './SyncDashboard';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -284,6 +285,8 @@ export function Dashboard(props: DashboardProps = {}): ReactElement {
           Quantbrowse AI
         </h1>
       </header>
+
+      <SyncDashboard />
 
       <section
         aria-label="Quant apps"

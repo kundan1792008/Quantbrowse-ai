@@ -678,6 +678,21 @@
     STATE.heartbeatTimer = setInterval(() => sendHeartbeat("interval"), HEARTBEAT_INTERVAL_MS);
   }
 
+  function cleanup() {
+    if (STATE.heartbeatTimer) {
+      clearInterval(STATE.heartbeatTimer);
+      STATE.heartbeatTimer = null;
+    }
+    if (STATE.nudgeCountdownTimer) {
+      clearInterval(STATE.nudgeCountdownTimer);
+      STATE.nudgeCountdownTimer = null;
+    }
+  }
+
+  // Cleanup on page unload to prevent memory leaks
+  window.addEventListener("beforeunload", cleanup);
+  window.addEventListener("pagehide", cleanup);
+
   function setupVisibility() {
     document.addEventListener("visibilitychange", () => {
       if (STATE.lastVisibility !== document.visibilityState) {
@@ -896,13 +911,35 @@
     const streak = STATE.dashboardRoot.querySelector('[data-qa="streak"]');
     if (!scoreEl || !bar || !STATE.dashboardData) return;
 
-    const score = STATE.dashboardData.productivityScore ?? 0;
-    const weekScore = STATE.dashboardData.weekScore ?? 0;
-    scoreEl.innerHTML = `<div>Today</div><strong>${score}</strong><div>Weekly avg ${weekScore}</div>`;
-    bar.style.width = `${score}%`;
+    const score = Number(STATE.dashboardData.productivityScore ?? 0);
+    const weekScore = Number(STATE.dashboardData.weekScore ?? 0);
+
+    // Safely set content using textContent to prevent XSS
+    scoreEl.innerHTML = "";
+    const todayDiv = document.createElement("div");
+    todayDiv.textContent = "Today";
+    const scoreStrong = document.createElement("strong");
+    scoreStrong.textContent = String(score);
+    const weekDiv = document.createElement("div");
+    weekDiv.textContent = `Weekly avg ${weekScore}`;
+    scoreEl.appendChild(todayDiv);
+    scoreEl.appendChild(scoreStrong);
+    scoreEl.appendChild(weekDiv);
+
+    bar.style.width = `${Math.min(100, Math.max(0, score))}%`;
 
     const focus = STATE.dashboardData.focusStreak ?? { currentMinutes: 0, longestMinutes: 0 };
-    streak.innerHTML = `<div>Focus streak</div><strong>${focus.currentMinutes}m</strong><div>Best ${focus.longestMinutes}m</div>`;
+
+    streak.innerHTML = "";
+    const streakDiv1 = document.createElement("div");
+    streakDiv1.textContent = "Focus streak";
+    const streakStrong = document.createElement("strong");
+    streakStrong.textContent = `${Number(focus.currentMinutes)}m`;
+    const streakDiv2 = document.createElement("div");
+    streakDiv2.textContent = `Best ${Number(focus.longestMinutes)}m`;
+    streak.appendChild(streakDiv1);
+    streak.appendChild(streakStrong);
+    streak.appendChild(streakDiv2);
   }
 
   function buildActionCard() {
@@ -978,17 +1015,34 @@
   function buildStat(label, value) {
     const stat = document.createElement("div");
     stat.className = "qa-stat";
-    stat.innerHTML = `<div>${label}</div><strong>${value}</strong>`;
+
+    const labelDiv = document.createElement("div");
+    labelDiv.textContent = String(label);
+
+    const valueStrong = document.createElement("strong");
+    valueStrong.textContent = String(value);
+
+    stat.appendChild(labelDiv);
+    stat.appendChild(valueStrong);
     return stat;
   }
 
   function buildListItem(label, value, category) {
     const item = document.createElement("div");
     item.className = "qa-list-item";
+
+    const labelSpan = document.createElement("span");
+    labelSpan.textContent = String(label);
+
+    const valueStrong = document.createElement("strong");
+    valueStrong.textContent = String(value);
+
     const tag = document.createElement("span");
     tag.className = "qa-tag";
-    tag.textContent = category;
-    item.innerHTML = `<span>${label}</span><strong>${value}</strong>`;
+    tag.textContent = String(category);
+
+    item.appendChild(labelSpan);
+    item.appendChild(valueStrong);
     item.appendChild(tag);
     return item;
   }

@@ -63,6 +63,8 @@ export class BehaviorTelemetry {
     const rapidSaccades = this.computeRapidSaccades();
     const scrollRhythm = this.computeScrollRhythm();
 
+    // Tuned for interaction prediction: hesitation + scroll rhythm carry slightly
+    // more intent signal than raw velocity/saccades on content-heavy pages.
     const confidence =
       clamp01(cursorVelocity * 0.22) +
       clamp01(hoverHesitation * 0.28) +
@@ -74,7 +76,7 @@ export class BehaviorTelemetry {
       hoverHesitation: round2(hoverHesitation),
       rapidSaccades: round2(rapidSaccades),
       scrollRhythm: round2(scrollRhythm),
-      confidence: round2(clamp01(confidence / 1.8)),
+      confidence: round2(clamp01(confidence)),
       timestamp: Date.now(),
     };
   }

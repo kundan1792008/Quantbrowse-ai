@@ -78,4 +78,52 @@ describe('ActionPreloader', () => {
     preloader.clearHighlight();
     expect(anchor.classList.contains('qb-intent-predicted')).toBe(false);
   });
+
+  it('returns null when no candidates satisfy minimum prediction score', () => {
+    const anchor = document.getElementById('article') as HTMLAnchorElement;
+    Object.defineProperty(anchor, 'getBoundingClientRect', {
+      value: () => makeRect(1300, 1200, 20, 20),
+    });
+    Object.defineProperty(window, 'innerWidth', { value: 1280, configurable: true });
+    Object.defineProperty(window, 'innerHeight', { value: 720, configurable: true });
+
+    const telemetryStub = {
+      getFocusVector: () => ({
+        cursorVelocity: 0.01,
+        hoverHesitation: 0.01,
+        rapidSaccades: 0.01,
+        scrollRhythm: 0.01,
+        confidence: 0.01,
+        timestamp: Date.now(),
+      }),
+      getLatestCursorPoint: () => ({ x: 20, y: 20 }),
+    } as unknown as BehaviorTelemetry;
+
+    const preloader = new ActionPreloader(telemetryStub, { minPredictionScore: 0.9 });
+    expect(preloader.evaluateNextAction()).toBeNull();
+  });
+
+  it('handles null pointer and empty eligible set without errors', () => {
+    const anchor = document.getElementById('article') as HTMLAnchorElement;
+    Object.defineProperty(anchor, 'getBoundingClientRect', {
+      value: () => makeRect(0, 0, 4, 4),
+    });
+    Object.defineProperty(window, 'innerWidth', { value: 1280, configurable: true });
+    Object.defineProperty(window, 'innerHeight', { value: 720, configurable: true });
+
+    const telemetryStub = {
+      getFocusVector: () => ({
+        cursorVelocity: 0.4,
+        hoverHesitation: 0.4,
+        rapidSaccades: 0.2,
+        scrollRhythm: 0.5,
+        confidence: 0.45,
+        timestamp: Date.now(),
+      }),
+      getLatestCursorPoint: () => null,
+    } as unknown as BehaviorTelemetry;
+
+    const preloader = new ActionPreloader(telemetryStub);
+    expect(preloader.evaluateNextAction()).toBeNull();
+  });
 });

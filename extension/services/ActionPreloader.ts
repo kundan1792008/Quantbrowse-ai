@@ -24,6 +24,10 @@ const DEFAULT_OPTIONS: Required<ActionPreloaderOptions> = {
 };
 
 const INTENT_STYLE_ID = 'qb-intent-preloader-style';
+// Near-pointer proximity is the strongest indicator of immediate click intent.
+const DISTANCE_WEIGHT = 0.48;
+// Target size/readability matters, but less than pointer proximity.
+const TARGETABILITY_WEIGHT = 0.2;
 
 export class ActionPreloader {
   private readonly telemetry: BehaviorTelemetry;
@@ -70,7 +74,6 @@ export class ActionPreloader {
       const prefetch = document.createElement('link');
       prefetch.rel = 'prefetch';
       prefetch.href = href;
-      prefetch.as = 'document';
       document.head?.appendChild(prefetch);
       return;
     }
@@ -150,6 +153,8 @@ export class ActionPreloader {
     const distanceScore = 1 - Math.min(1, distance / 700);
     const area = Math.max(1, rect.width * rect.height);
     const targetabilityScore = Math.min(1, Math.log10(area + 1) / 4);
+    // Focus weights prioritize deliberate pauses and scroll cadence, while still
+    // incorporating movement speed as a weaker corroborating signal.
     const focusBoost =
       focus.hoverHesitation * 0.34 + focus.scrollRhythm * 0.24 + focus.cursorVelocity * 0.22;
 
@@ -160,7 +165,14 @@ export class ActionPreloader {
       element.isContentEditable;
 
     const semanticBoost = isLink ? 0.14 : isInput ? 0.18 : 0.1;
-    const score = clamp01(distanceScore * 0.48 + targetabilityScore * 0.2 + focusBoost + semanticBoost);
+    // Distance is primary (near-pointer intent), targetability is secondary.
+    // focusBoost and semanticBoost are already pre-weighted aggregates.
+    const score = clamp01(
+      distanceScore * DISTANCE_WEIGHT +
+        targetabilityScore * TARGETABILITY_WEIGHT +
+        focusBoost +
+        semanticBoost
+    );
 
     return {
       element,

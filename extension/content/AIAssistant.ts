@@ -376,6 +376,8 @@ class AIAssistant {
   private actionPreloader: ActionPreloader | null = null;
   private intentLoop: number | null = null;
   private lastPredictionId: string | null = null;
+  private elementIntentIds = new WeakMap<Element, string>();
+  private nextElementIntentId = 0;
 
   constructor() {
     this.host = document.createElement('div');
@@ -763,6 +765,7 @@ class AIAssistant {
   private initializeIntentPrediction(): void {
     this.behaviorTelemetry = new BehaviorTelemetry();
     this.actionPreloader = new ActionPreloader(this.behaviorTelemetry);
+    // 450ms keeps prediction responsive without creating high-frequency DOM churn.
     this.intentLoop = window.setInterval(() => {
       const preloader = this.actionPreloader;
       if (!preloader || this.state === 'panel') return;
@@ -785,7 +788,13 @@ class AIAssistant {
   private getPredictionKey(prediction: PredictedAction): string {
     const el = prediction.element;
     const href = el instanceof HTMLAnchorElement ? el.href : '';
-    const id = el.id || el.getAttribute('name') || el.getAttribute('aria-label') || el.tagName;
+    let stableElementId = this.elementIntentIds.get(el);
+    if (!stableElementId) {
+      this.nextElementIntentId += 1;
+      stableElementId = `el-${this.nextElementIntentId}`;
+      this.elementIntentIds.set(el, stableElementId);
+    }
+    const id = el.id || el.getAttribute('name') || el.getAttribute('aria-label') || stableElementId;
     return `${prediction.type}:${id}:${href}`;
   }
 
